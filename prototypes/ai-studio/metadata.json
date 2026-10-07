@@ -1,0 +1,6 @@
+{
+  "name": "Show Your Work",
+  "description": "Inspectable financial assumptions and scenario planning for students and young adults.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
