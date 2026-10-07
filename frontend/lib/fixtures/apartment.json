@@ -1,0 +1,74 @@
+{
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": 4583.33,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Annual salary of $55,000 divided by 12. Tax treatment is not established."
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Total expenses were not provided."
+    },
+    {
+      "variable": "monthly_car_payment",
+      "value": 350,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said $350 each month."
+    },
+    {
+      "variable": "monthly_student_loan_payment",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Balance and interest do not establish the monthly payment."
+    },
+    {
+      "variable": "current_rent",
+      "value": 1000,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said current rent is $1,000."
+    },
+    {
+      "variable": "proposed_rent",
+      "value": 1400,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said proposed rent is $1,400."
+    },
+    {
+      "variable": "goal_deadline",
+      "value": "2027-02-01",
+      "unit": "date",
+      "source": "stated",
+      "source_detail": "You explicitly provided February 1, 2027."
+    },
+    {
+      "variable": "goal_description",
+      "value": "Move to a new apartment",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want to move."
+    }
+  ],
+  "clarification_questions": [
+    {
+      "target_variable": "monthly_income",
+      "question": "What is your monthly income after tax?",
+      "why_it_matters": "Gross salary is not spendable income."
+    },
+    {
+      "target_variable": "monthly_student_loan_payment",
+      "question": "What is your actual monthly student loan payment?",
+      "why_it_matters": "This affects recurring expenses."
+    }
+  ],
+  "goal_summary": "Review the budget for moving to a new apartment.",
+  "confidence_note": "Extra variables are included. This scenario requires a different calculator."
+}

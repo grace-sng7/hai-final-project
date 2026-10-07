@@ -1,0 +1,67 @@
+{
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": 2000,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said your monthly income after tax is $2,000."
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": 1650,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "You mentioned $900 rent and about $750 other monthly spending."
+    },
+    {
+      "variable": "monthly_surplus",
+      "value": 350,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Extracted as income minus expenses. Requires deterministic verification."
+    },
+    {
+      "variable": "current_savings",
+      "value": 1200,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said you have $1,200 saved. This is your total savings, not the amount committed to this goal."
+    },
+    {
+      "variable": "goal_amount",
+      "value": 3000,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You estimated a $3,000 Europe trip."
+    },
+    {
+      "variable": "goal_deadline",
+      "value": 8,
+      "unit": "months",
+      "source": "stated",
+      "source_detail": "You explicitly said in 8 months."
+    },
+    {
+      "variable": "goal_description",
+      "value": "Europe trip with friends",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want to travel to Europe with friends."
+    }
+  ],
+  "clarification_questions": [
+    {
+      "target_variable": "monthly_expenses",
+      "question": "Does $1,650 include all your usual monthly expenses?",
+      "why_it_matters": "Any omitted spending changes how much you can save."
+    },
+    {
+      "target_variable": "savings_allocated_to_goal",
+      "question": "How much of your $1,200 savings would you use for this trip?",
+      "why_it_matters": "Your total savings may include money you want to keep."
+    }
+  ],
+  "goal_summary": "Check whether a $3,000 Europe trip in 8 months fits your budget.",
+  "confidence_note": "Review the expense total and clarify how much savings you want to use."
+}
