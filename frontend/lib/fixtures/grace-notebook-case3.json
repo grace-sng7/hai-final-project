@@ -1,0 +1,86 @@
+{
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": 2000,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "User stated 'around $2k most months'"
+    },
+    {
+      "variable": "monthly_expenses_rent",
+      "value": 900,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "User stated 'Rent is like $900'"
+    },
+    {
+      "variable": "monthly_expenses_other",
+      "value": 750,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "User stated 'probably spend another $700–800?', midpoint used"
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": 1650,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Sum of stated rent and other expenses"
+    },
+    {
+      "variable": "monthly_surplus",
+      "value": 350,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Calculated from stated monthly income ($2000) minus inferred total monthly expenses ($1650)"
+    },
+    {
+      "variable": "current_savings",
+      "value": 1200,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "User stated 'I have $1,200 saved'"
+    },
+    {
+      "variable": "goal_amount",
+      "value": 3000,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "User stated 'it'll probably be around $3k'"
+    },
+    {
+      "variable": "goal_deadline",
+      "value": 9,
+      "unit": "months",
+      "source": "inferred",
+      "source_detail": "User stated 'next May', assuming current month is August"
+    },
+    {
+      "variable": "goal_description",
+      "value": "Europe trip with friends",
+      "unit": null,
+      "source": "stated",
+      "source_detail": "User stated 'My friends want to go to Europe next May'"
+    }
+  ],
+  "clarification_questions": [
+    {
+      "target_variable": "monthly_income",
+      "question": "You mentioned your income 'changes'. What's the lowest you typically make in a month?",
+      "why_it_matters": "Understanding your minimum income helps assess the most conservative savings potential."
+    },
+    {
+      "target_variable": "current_savings",
+      "question": "You mentioned you 'don't really want to use all' of your $1,200 savings. How much of that are you comfortable allocating towards the Europe trip?",
+      "why_it_matters": "Knowing how much of your current savings you're willing to use directly impacts how much you need to save from future income."
+    },
+    {
+      "target_variable": "goal_deadline",
+      "question": "Could you confirm the exact month and year you plan to depart for Europe?",
+      "why_it_matters": "The precise deadline affects the number of months available to save for the trip."
+    }
+  ],
+  "goal_summary": "The user wants to know if saving approximately $3,000 for a trip to Europe by next May is realistic, given their current income, expenses, and savings.",
+  "confidence_note": "High confidence in extracting stated values; some inference made for expense totals and goal deadline based on typical calendar assumptions."
+}

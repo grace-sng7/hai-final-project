@@ -38,3 +38,7 @@ The notebook currently exposes `call_llm(user_message)`, not HTTP endpoints. The
 5. Agree on a separate production calculator contract. The frontend savings example is deterministic and local; it is not Grace's model output or a production affordability calculation. Other scenario calculators are not connected.
 
 See [`frontend/README.md`](frontend/README.md) for fixture behavior, code structure, and detailed integration notes. Accounts, persistence, bank connections, and live extraction are outside this contribution. Environment files, dependencies, build artifacts, and notebook checkpoints are ignored.
+
+### Actual notebook-output compatibility
+
+The frontend also offers **Grace’s saved output**, replaying the raw JSON from notebook cell 16 through normal demo loading. See [`frontend/README.md`](frontend/README.md#verified-compatibility-with-graces-saved-json) for provenance, checks, and limitations. The actual response has a nullable `unit` on the goal description, which the frontend preserves. Its historical next-May/nine-month inference is displayed for review, not treated as a current date calculation. The expanded test suite checks the response contract and UI edge cases; it does not verify a live Python API.

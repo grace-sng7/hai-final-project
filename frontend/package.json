@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node tests/contracts.mjs"
+    "test": "node tests/contracts.mjs && node tests/compatibility.mjs",
+    "capture:grace": "node scripts/capture-grace-output.mjs"
   },
   "dependencies": {
     "next": "16.2.4",
