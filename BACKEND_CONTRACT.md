@@ -14,7 +14,7 @@ A working skeleton lives in `backend_reference/` (FastAPI + Pydantic + one examp
 
 | Who | Owns | Files in `backend_reference/` |
 |---|---|---|
-| Grace | `/extract`, `/correct` | `extraction_service.py` (paste the notebook prompt in) |
+| Grace | `/extract`, `/correct` | `extraction_service.py` (exact notebook prompt copied; live calls unverified) |
 | Calculation teammate | `/calculate` | `savings_model.py` (template), add one module per question type |
 | Shared | field names / JSON shapes | `contract.py` (Pydantic models = this document) |
 
@@ -114,22 +114,13 @@ Field notes
 3. Return `needs_input` for missing inputs, `unsupported` when unsure. Add a request/response pair to `backend_reference/examples/`
    (`name.request.json`, `name.response.json`, `name.extraction.json`) — `npm test` checks every pair against the frontend.
 
-## Run it all locally
-```bash
-# backend (terminal 1)
-cd backend_reference && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export OPENROUTER_API_KEY=...          # Grace's key; only needed for /extract and /correct
-uvicorn main:app --reload --port 8000  # test pages: http://localhost:8000/docs
+## Local setup and verification
 
-# frontend (terminal 2, repo root)
-cp env.example .env.local              # sets NEXT_PUBLIC_BACKEND_MODE=live and BACKEND_URL
-npm install && npm run dev             # http://localhost:3000
-```
-Remove `.env.local` (or set `NEXT_PUBLIC_BACKEND_MODE=demo`) to return to the sample-only demo.
-`/calculate` can be developed with no LLM and no Grace code: POST any `examples/*.request.json` to it.
+See [FRONTEND_README.md](FRONTEND_README.md) for the maintained setup and verification steps, including isolated Python dependencies and secure local environment files. See [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md) for adapter boundaries and implementation gaps. Routes and adapters are implemented; real provider calls and browser-to-LLM behavior remain unverified. Offline route tests use stubbed responses.
+
+`/calculate` can be developed with no LLM credentials: POST any `examples/*.request.json` to it.
 
 ## Known limits of v1 (deliberate)
 - One calculation model (savings goal) ships as the reference. Other questions return `unsupported`, and the UI says so honestly.
 - No accounts, no persistence: state lives in the browser tab.
-- No streaming; `/extract` may take several seconds (UI shows a loading state, 90 s timeout).
+- No streaming; `/extract` may take several seconds (UI shows a loading state; browser timeout is 90 s, but the proxy upstream timeout is 55 s).
