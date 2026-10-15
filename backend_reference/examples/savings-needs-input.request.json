@@ -1,0 +1,68 @@
+{
+  "original_question": "I have around $1,500 saved and want to buy a $2,000 laptop sometime next semester. Can I afford it?",
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Income was not provided.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Expenses were not provided.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_surplus",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Income and expenses are needed.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "current_savings",
+      "value": 1500,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said about $1,500 saved.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_amount",
+      "value": 2000,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said the laptop costs $2,000.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_deadline",
+      "value": null,
+      "unit": "months",
+      "source": "missing",
+      "source_detail": "Next semester is not a precise deadline.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_description",
+      "value": "Buy a laptop",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want a laptop.",
+      "edited_by_user": false
+    }
+  ],
+  "extra_inputs": {},
+  "answers": [],
+  "parameters": {},
+  "extraction_meta": {
+    "goal_summary": "Check whether you can afford a $2,000 laptop.",
+    "confidence_note": "Income, expenses, and deadline are missing."
+  }
+}

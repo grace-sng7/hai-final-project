@@ -1,0 +1,74 @@
+{
+  "status": "conditional",
+  "answer": {
+    "headline": "No, saving {monthly_contribution} per month still leaves a $600 shortfall.",
+    "detail": "Based on the values and assumptions shown here."
+  },
+  "parameters": [
+    {
+      "key": "monthly_contribution",
+      "label": "Save each month",
+      "value": 150,
+      "unit": "$",
+      "min": 0,
+      "max": 350,
+      "step": 0.01
+    },
+    {
+      "key": "use_from_savings",
+      "label": "Use from existing savings",
+      "value": 1200,
+      "unit": "$",
+      "min": 0,
+      "max": 1200,
+      "step": 0.01
+    }
+  ],
+  "metrics": [
+    {
+      "label": "Goal amount",
+      "value": "$3,000"
+    },
+    {
+      "label": "Projected at deadline",
+      "value": "$2,400"
+    },
+    {
+      "label": "Remaining gap",
+      "value": "$600"
+    },
+    {
+      "label": "Monthly cash remaining",
+      "value": "$200"
+    }
+  ],
+  "explanations": [
+    {
+      "label": "Monthly available cash",
+      "text": "$2,000 − $1,650 = $350"
+    },
+    {
+      "label": "Projected savings",
+      "text": "$1,200 + $150 × 8 months = $2,400"
+    },
+    {
+      "label": "Remaining gap",
+      "text": "max(0, $3,000 − $2,400) = $600"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "starting-contribution",
+      "text": "Would saving $150 each month work for you?",
+      "parameter_key": "monthly_contribution",
+      "review_label": "Review"
+    },
+    {
+      "id": "constant-values",
+      "text": "Income and spending stay constant. No interest, unlisted costs, or competing goals are included."
+    }
+  ],
+  "limitations": [
+    "A proposed savings amount is not a user commitment."
+  ]
+}
