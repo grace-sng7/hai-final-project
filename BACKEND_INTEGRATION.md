@@ -1,14 +1,14 @@
-# Show Your Work：后端接入说明
+# Show Your Work: Backend Integration Guide
 
-> **真实后端接入已就绪**：网络调用在 `lib/http-services.ts`，格式转换在 `lib/backend-wire.ts`，给队友的接口约定见 `BACKEND_CONTRACT.md`，可运行的 Python 起步项目见 `backend_reference/`。设置 `NEXT_PUBLIC_BACKEND_MODE=live` 即可切换（见 `env.example`）。下文描述的前端内部契约仍然有效。
+> **Live backend integration is ready.** Network calls are in `lib/http-services.ts`, format conversion is in `lib/backend-wire.ts`, the interface contract for teammates is in `BACKEND_CONTRACT.md`, and a runnable Python starter project is in `backend_reference/`. Set `NEXT_PUBLIC_BACKEND_MODE=live` to switch (see `env.example`). The internal frontend contracts described below remain valid.
 
-目前运行的是模拟服务，不是已接通的 Python 后端。页面、编辑、模式切换、参数同步、加载失效和重试是真实前端功能；提取能力和计算结论仍来自 mock。
+By default the app runs on mock services, not a connected Python backend. The page, editing, mode switching, parameter syncing, load invalidation, and retry are real frontend features; extraction ability and calculation conclusions still come from mocks.
 
-## 1. 两份独立契约
+## 1. Two independent contracts
 
-### Extraction：Grace 当前的响应格式
+### Extraction: Grace's current response format
 
-依据 `reference/show_your_work_extraction.ipynb` 的系统提示、`call_llm(user_message)`、更正提示和实际打印结果：
+Based on the system prompt, `call_llm(user_message)`, the correction prompt, and the actual printed output in `reference/show_your_work_extraction.ipynb`:
 
 ```ts
 interface ExtractionResponse {
@@ -32,9 +32,9 @@ interface ExtractionResponse {
 }
 ```
 
-数组长度、顺序和变量名称不固定。实际输出包含字符串、日期和 `unit: null`；前端不把它们强行转换为数字。不认识的附加字段原样保留。未知 source 值或缺少必需字段会被拒绝，不会伪装为成功。
+Array length, order, and variable names are not fixed. Real output includes strings, dates, and `unit: null`; the frontend does not force them into numbers. Unrecognized extra fields are preserved as-is. An unknown `source` value or a missing required field is rejected, never disguised as success.
 
-Notebook 尚未提供 HTTP 路由或正式 request envelope。以下请求结构是**前端建议，需要 Grace 确认**；日期和时区也不是 notebook 已实现的参数：
+The notebook does not yet provide HTTP routes or a formal request envelope. The request shape below is a **frontend proposal that Grace needs to confirm**; the date and timezone are not parameters the notebook implements today:
 
 ```json
 {
@@ -44,7 +44,7 @@ Notebook 尚未提供 HTTP 路由或正式 request envelope。以下请求结构
 }
 ```
 
-合法的 extraction 示例：
+A valid extraction example:
 
 ```json
 {
@@ -60,13 +60,13 @@ Notebook 尚未提供 HTTP 路由或正式 request envelope。以下请求结构
 }
 ```
 
-更正通过 `ExtractionService.correct` 提交：原始问题、`previous_extraction` 和 `user_correction` 文本，再返回相同的 ExtractionResponse。当前 notebook 的更正例子也是组合文本后重新调用模型；服务端如何包装、鉴权和处理日期仍需确认。
+Corrections are submitted through `ExtractionService.correct`: the original question, `previous_extraction`, and the `user_correction` text, and it returns another `ExtractionResponse` of the same shape. The notebook's current correction example also composes the text and calls the model again; how the server wraps this, handles authentication, and handles dates still needs to be confirmed.
 
-## 2. Calculation：暂定接口，尚未由计算队友确认
+## 2. Calculation: provisional interface, not yet confirmed by the calculation teammate
 
-完整 TypeScript 定义和运行时校验见 `lib/calculation-contract.ts`。以下是前端需要的适配契约，不是已经存在的 Python API。
+The full TypeScript definitions and runtime validation are in `lib/calculation-contract.ts`. What follows is the adapter contract the frontend needs. It is not an existing Python API.
 
-输入示例：
+Input example:
 
 ```json
 {
@@ -89,13 +89,13 @@ Notebook 尚未提供 HTTP 路由或正式 request envelope。以下请求结构
 }
 ```
 
-- `edits`：原 extraction 数组索引 → 用户修改，支持 number/string/null。
-- `answers`：稳定的澄清键 → 用户回答。回答不一定等于同名事实，例如“愿意动用多少储蓄”不能覆盖“储蓄总额”。
-- `answerFactBindings`：仅由服务明确声明的、回答真正更正哪个事实的映射。最新事实编辑会清除旧的关联回答；新回答会替换旧编辑，防止发送互相矛盾的值。
-- `parameters`：服务声明的计算参数 → 用户选择；它们不作为提取事实发送给 Grace。
-- 所有索引只对这份 extraction 有效。更正后替换 extraction、清空旧映射；后端如采用稳定 ID，需要在 adapter 中转换。
+- `edits`: original extraction array index → the user's edit; supports number/string/null.
+- `answers`: stable clarification key → the user's answer. An answer does not necessarily equal the fact with the same name. For example, "how much savings are you willing to use" must not overwrite "total savings".
+- `answerFactBindings`: a mapping, declared explicitly by the service only, of which fact an answer actually corrects. The latest fact edit clears older linked answers; a new answer replaces an older edit, so contradictory values are never sent.
+- `parameters`: calculation parameters declared by the service → the user's choice. They are not sent to Grace as extracted facts.
+- All indices are valid only for this one extraction. After a correction, the extraction is replaced and old mappings are cleared. If the backend adopts stable IDs, the adapter needs to convert them.
 
-输出示例（静态接口测试，**没有执行真实通勤计算**）：
+Output example (a static interface test; **no real commute calculation was performed**):
 
 ```json
 {
@@ -114,39 +114,39 @@ Notebook 尚未提供 HTTP 路由或正式 request envelope。以下请求结构
 }
 ```
 
-所有数组都必须存在，可以为空或任意长度。原 extraction 的信息和未覆盖的澄清问题仍由通用展示适配器补充，不会因计算服务不支持而丢失。
+Every array must be present, and may be empty or any length. Information from the original extraction and any clarification questions the calculation does not cover are still added by the generic presentation adapter, so nothing is lost when the calculation service does not support a topic.
 
-支持的状态：
+Supported statuses:
 
-- `ready`：计算完成，必须有非空 `answer.headline`。
-- `conditional`：有条件结果，必须有 answer，并可提供假设、参数和解释。
-- `needs_input`：只有 message 和所需 questions，不提供 answer。
-- `unsupported`：只有 message、可审阅信息和可选下一步，不编造结论。
-- `stale`：目前不能使用结果，只有 message；不是有效答案。
+- `ready`: the calculation is complete; a non-empty `answer.headline` is required.
+- `conditional`: a conditional result; an answer is required, and it may include assumptions, parameters, and explanations.
+- `needs_input`: only a message and the required questions; no answer.
+- `unsupported`: only a message, reviewable information, and optional next actions; no invented conclusion.
+- `stale`: the result cannot currently be used; only a message. This is not a valid answer.
 
-请求失败和未知状态不是成功状态：前端保留用户修改，清除可见旧结论，提供 Retry。未知附加字段可保留；未知状态必须拒绝，不能默认视为 ready。
+A failed request or an unknown status is not a success state: the frontend keeps the user's edits, clears the visible old conclusion, and offers Retry. Unknown extra fields may be kept; an unknown status must be rejected and never treated as `ready` by default.
 
-字段采用 `binding` 指定同一个数据来源：`{kind:'fact',index}`、`{kind:'answer',key}` 或 `{kind:'parameter',key}`。数字/日期/选择框只能来自明确 control 元数据；原始澄清问题安全回退为文字输入，不用关键词猜类型。
+Fields use `binding` to point at the same data source: `{kind:'fact',index}`, `{kind:'answer',key}`, or `{kind:'parameter',key}`. Number, date, and select inputs can only come from explicit control metadata; original clarification questions safely fall back to text input, and types are never guessed from keywords.
 
-`questions[].correctsFactIndex` 明确回答与事实的关系；`extractionQuestionIndices` 明确覆盖哪些原始问题。仅 target_variable 相同不足以合并。重复参数 ID 必须具有相同 binding/control/value/unit；inline answer 和 What If 使用同一参数注册表。可选 `answer.segments` 引用 parameterId，页面不会解析财务文字或猜测结论。
+`questions[].correctsFactIndex` states explicitly how an answer relates to a fact, and `extractionQuestionIndices` states explicitly which original questions are covered. An identical `target_variable` alone is not enough to merge them. Repeated parameter IDs must have the same binding/control/value/unit; inline answers and What If share one parameter registry. The optional `answer.segments` references a `parameterId`; the page does not parse financial text or guess conclusions.
 
-仍需计算队友确认：真正输入输出结构、支持哪些模型、必需值与约束、单位和币种、精度、稳定 ID、假设和用户选择的区别、派生值依赖、错误格式，以及由谁把实际结果转换为此暂定契约。
+Still to be confirmed with the calculation teammate: the real input/output structure, which models are supported, required values and constraints, units and currency, precision, stable IDs, the difference between assumptions and user choices, dependencies between derived values, the error format, and who converts actual results into this provisional contract.
 
-## 3. 当前文件边界和替换位置
+## 3. Current file boundaries and replacement points
 
-- `lib/extraction.ts`：提取契约、校验、`TransportExtractionService`。不导入 fixture，不匹配问题原文。
-- `lib/calculation-contract.ts`：暂定计算契约及校验。
-- `lib/calculation-service.ts`：`TransportCalculationService`，接收约定的 transport 函数，不假定 URL。
-- `lib/services.ts`：唯一默认服务组合点。接入时把两项 mock binding 替换为 transport adapter；设置 `demoMode={false}` 隐藏示例入口。无需更改展示组件。
-- `lib/mock/data.ts`：三个示例的提示和测试 extraction 数据。示例按钮只把提示填入输入框，点击 Continue 才请求服务。
-- `lib/mock/extraction-service.ts`：mock 内的原文匹配和单个预设更正；不解析任意自然语言。可注入额外 fixture 测试不同主题。
-- `lib/mock/calculation-service.ts`：mock 响应提供者。可注入 ready/conditional/needs_input/unsupported 响应或抛错，不改变页面结构。
-- `lib/mock/local-demo-calculation.ts` + `lib/calculator.ts`：独立储蓄 demo 实现，只用于明确注册的 mock 数据，仍保留原文上下文、完整快照、单位和参数安全限制。默认仅旅行/电脑示例可用；搬家不支持。真实后端输出不得回退至此公式。
-- `lib/calculation-runner.ts`：通用请求快照、校验、错误转为可重试状态、取消过期返回；页面 effect 直接复用这套已测试逻辑。
-- `lib/workspace-model.ts`：两种模式共用的原始 extraction、修改、回答、参数、确认和结果版本。
-- `lib/presentation-model.ts`、`components/result-view.tsx`：仅根据状态、字段、问题、参数和结果渲染，不根据示例名称或金额选择页面。
+- `lib/extraction.ts`: extraction contract, validation, and `TransportExtractionService`. It imports no fixtures and does not match question text.
+- `lib/calculation-contract.ts`: the provisional calculation contract and its validation.
+- `lib/calculation-service.ts`: `TransportCalculationService`, which accepts an agreed transport function and assumes no URL.
+- `lib/services.ts`: the single default service composition point. To integrate, replace the two mock bindings with transport adapters, and set `demoMode={false}` to hide the example entry points. No display component needs to change.
+- `lib/mock/data.ts`: the prompts and test extraction data for the three examples. The example buttons only fill the prompt into the input box; the service is requested only when the user clicks Continue.
+- `lib/mock/extraction-service.ts`: exact-text matching and a single preset correction inside the mock; it does not parse arbitrary natural language. Extra fixtures can be injected to test other topics.
+- `lib/mock/calculation-service.ts`: the mock response provider. It can be injected with ready/conditional/needs_input/unsupported responses or thrown errors without changing the page structure.
+- `lib/mock/local-demo-calculation.ts` + `lib/calculator.ts`: an independent savings demo implementation, used only for explicitly registered mock data. It still enforces original-text context, full snapshot, unit, and parameter safety limits. By default only the trip and laptop examples work; the apartment move is unsupported. Real backend output must never fall back to this formula.
+- `lib/calculation-runner.ts`: generic request snapshots, validation, converting errors into a retryable state, and canceling stale responses. The page effect reuses this tested logic directly.
+- `lib/workspace-model.ts`: the original extraction, edits, answers, parameters, confirmations, and result version shared by both modes.
+- `lib/presentation-model.ts`, `components/result-view.tsx`: render only from status, fields, questions, parameters, and results. They never choose a page based on an example name or an amount.
 
-建议真实服务的组合方式（不是已实现的端点）：
+Suggested composition for real services (not an implemented endpoint):
 
 ```ts
 const extractionService = new TransportExtractionService({
@@ -156,25 +156,25 @@ const extractionService = new TransportExtractionService({
 const calculationService = new TransportCalculationService(agreedCalculationTransport);
 ```
 
-transport 必须由团队根据真实路由、鉴权、超时和错误协议实现。不要把 API 密钥写进客户端代码；Notebook 的模型调用应留在服务器端。
+The transport must be implemented by the team according to the real routes, authentication, timeouts, and error protocol. Do not put API keys in client-side code; the notebook's model calls should stay on the server.
 
-## 4. 状态、失效与模拟范围
+## 4. State, invalidation, and mock scope
 
-原 extraction 保持不变。保存事实、回答问题、调整参数后创建新的计算请求；未完成的编辑或更正草稿会隐藏旧结论。版本号和请求取消保证旧响应不能覆盖新状态。重试走相同接口，模式切换只影响展示。
+The original extraction stays unchanged. Saving a fact, answering a question, or adjusting a parameter creates a new calculation request; an unfinished edit or correction draft hides the old conclusion. Version numbers and request cancellation ensure an old response can never overwrite a newer state. Retry uses the same interface, and switching modes affects only the display.
 
-Submit corrections 向提取服务发送当前有效更正文字；What If 参数不混入事实。更正失败保留草稿，成功接受新 ExtractionResponse。mock 提取目前只有预设更正会成功，其他更正会明确报模拟限制；这不是自然语言提取能力。
+Submit corrections sends the currently effective correction text to the extraction service; What If parameters are not mixed in with facts. A failed correction keeps the draft, and a successful one accepts the new `ExtractionResponse`. In the mock extraction, only the preset correction succeeds today; any other correction clearly reports the mock limitation. This is not natural-language extraction ability.
 
-原始 inferred 数值在修改后保守标为需要复核，直至获得新 extraction；计算响应中的当前指标独立展示。要自动刷新原派生字段，需要与后端约定依赖及权威更新元数据，不能让 React 猜公式。
+After an edit, original inferred values are conservatively marked as needing review until a new extraction arrives; the current metrics in the calculation response are displayed independently. Automatically refreshing the original derived fields requires agreeing dependencies and authoritative update metadata with the backend. React must not guess formulas.
 
-当前没有真实 HTTP 连接、持久化或真实计算能力承诺。刷新页面会丢失当前会话。新主题 fixture 仅证明相同前端流程可展示，并不说明后端已支持该主题。
+There is currently no real HTTP connection, persistence, or commitment to real calculation ability. Refreshing the page loses the current session. The new-topic fixture only proves that the same frontend flow can display it; it does not mean the backend supports that topic.
 
-## 5. 验证
+## 5. Validation
 
-`npm test` 包含三个实际示例、Notebook 打印 JSON 兼容性、金额变化、字段/问题数量变化与顺序变化、新的通勤主题、有效修改传递、参数请求、null、未知字段、未知状态、请求失败/重试、同步错误和过期响应取消。原有 800 种动态响应渲染组合及 P0 回归测试继续保留。
+`npm test` covers the three real examples, compatibility with the notebook's printed JSON, changed amounts, changes to the number and order of fields and questions, the new commute topic, passing valid edits through, parameter requests, null, unknown fields, unknown statuses, request failure/retry, synchronous errors, and canceling stale responses. The original 800 dynamic-response rendering combinations and the P0 regression tests are kept.
 
-同一组测试直接使用 Workspace 的 reducer、请求生命周期和 Quick/Guide 展示组件。架构检查确保正式契约与展示层不引入 fixture 或示例匹配规则。
+The same tests use Workspace's own reducer, request lifecycle, and the Quick/Guide display components directly. An architecture check ensures the production contracts and the display layer never import fixtures or example-matching rules.
 
-验证命令：
+Validation commands:
 
 ```sh
 npm test
@@ -182,4 +182,4 @@ npx eslint app components lib tests/contracts.mjs tests/integration-flow.mjs
 npm run build
 ```
 
-`.agents/` 保持未跟踪且不修改；全仓库 lint 会包含其中已有的独立脚本问题，因此这里使用应用范围 lint。
+`.agents/` stays untracked and unmodified; a repository-wide lint would include the existing standalone script issues in it, so application-scoped lint is used here.
