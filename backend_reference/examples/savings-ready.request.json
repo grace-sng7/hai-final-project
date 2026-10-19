@@ -1,0 +1,68 @@
+{
+  "original_question": "I make $2,000 a month after tax. Rent is $900 and other spending is about $750. I have $1,200 saved, but don’t want to use it all. Can I afford a $3,000 Europe trip with friends in 8 months?",
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": 2000,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said your monthly income after tax is $2,000.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": 1650,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "You mentioned $900 rent and about $750 other monthly spending.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_surplus",
+      "value": 350,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Extracted as income minus expenses. Requires deterministic verification.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "current_savings",
+      "value": 1200,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said you have $1,200 saved. This is your total savings, not the amount committed to this goal.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_amount",
+      "value": 3000,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You estimated a $3,000 Europe trip.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_deadline",
+      "value": 8,
+      "unit": "months",
+      "source": "stated",
+      "source_detail": "You explicitly said in 8 months.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_description",
+      "value": "Europe trip with friends",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want to travel to Europe with friends.",
+      "edited_by_user": false
+    }
+  ],
+  "extra_inputs": {},
+  "answers": [],
+  "parameters": {},
+  "extraction_meta": {
+    "goal_summary": "Check whether a $3,000 Europe trip in 8 months fits your budget.",
+    "confidence_note": "Review the expense total and clarify how much savings you want to use."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Income was not provided."
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Expenses were not provided."
+    },
+    {
+      "variable": "monthly_surplus",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Income and expenses are needed."
+    },
+    {
+      "variable": "current_savings",
+      "value": 1500,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said about $1,500 saved."
+    },
+    {
+      "variable": "goal_amount",
+      "value": 2000,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said the laptop costs $2,000."
+    },
+    {
+      "variable": "goal_deadline",
+      "value": null,
+      "unit": "months",
+      "source": "missing",
+      "source_detail": "Next semester is not a precise deadline."
+    },
+    {
+      "variable": "goal_description",
+      "value": "Buy a laptop",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want a laptop."
+    }
+  ],
+  "clarification_questions": [
+    {
+      "target_variable": "monthly_income",
+      "question": "What is your monthly income after tax?",
+      "why_it_matters": "Income helps estimate money available each month."
+    },
+    {
+      "target_variable": "monthly_expenses",
+      "question": "What are your total monthly expenses?",
+      "why_it_matters": "Expenses reduce money available each month."
+    },
+    {
+      "target_variable": "goal_deadline",
+      "question": "How many months until you need the laptop?",
+      "why_it_matters": "The deadline changes the monthly saving target."
+    }
+  ],
+  "goal_summary": "Check whether you can afford a $2,000 laptop.",
+  "confidence_note": "Income, expenses, and deadline are missing."
+}

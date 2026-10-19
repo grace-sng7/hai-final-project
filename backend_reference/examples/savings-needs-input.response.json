@@ -1,0 +1,21 @@
+{
+  "status": "needs_input",
+  "message": "A few details are needed before we can calculate an answer.",
+  "missing_inputs": [
+    {
+      "variable": "monthly_income",
+      "unit": "$/month",
+      "label": "What is your monthly income after tax?"
+    },
+    {
+      "variable": "monthly_expenses",
+      "unit": "$/month",
+      "label": "What are your total monthly expenses?"
+    },
+    {
+      "variable": "goal_deadline",
+      "unit": "months",
+      "label": "How many months until you need the money?"
+    }
+  ]
+}

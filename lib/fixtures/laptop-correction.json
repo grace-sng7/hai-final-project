@@ -1,0 +1,56 @@
+{
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": 1800,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You provided this number in the predefined demo correction."
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": 1300,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You provided this number in the predefined demo correction."
+    },
+    {
+      "variable": "monthly_surplus",
+      "value": 500,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Extracted income less expenses. Requires deterministic verification."
+    },
+    {
+      "variable": "current_savings",
+      "value": 1500,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said about $1,500 saved."
+    },
+    {
+      "variable": "goal_amount",
+      "value": 2000,
+      "unit": "$",
+      "source": "stated",
+      "source_detail": "You said the laptop costs $2,000."
+    },
+    {
+      "variable": "goal_deadline",
+      "value": 4,
+      "unit": "months",
+      "source": "stated",
+      "source_detail": "You provided this number in the predefined demo correction."
+    },
+    {
+      "variable": "goal_description",
+      "value": "Buy a laptop",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want a laptop."
+    }
+  ],
+  "clarification_questions": [],
+  "goal_summary": "Check whether a $2,000 laptop in 4 months fits your budget.",
+  "confidence_note": "The demo correction supplies income, expenses, and a four-month deadline. Savings allocation still needs your explicit choice."
+}

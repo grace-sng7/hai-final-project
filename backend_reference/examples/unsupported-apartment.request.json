@@ -1,0 +1,76 @@
+{
+  "original_question": "My annual salary is $55,000. My car payment is $350/month and I have student loans. I want to move on February 1, 2027 to an apartment costing $1,400/month instead of my current $1,000 rent. Can I swing it?",
+  "assumptions": [
+    {
+      "variable": "monthly_income",
+      "value": 4583.33,
+      "unit": "$/month",
+      "source": "inferred",
+      "source_detail": "Annual salary of $55,000 divided by 12. Tax treatment is not established.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_expenses",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Total expenses were not provided.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_car_payment",
+      "value": 350,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said $350 each month.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "monthly_student_loan_payment",
+      "value": null,
+      "unit": "$/month",
+      "source": "missing",
+      "source_detail": "Balance and interest do not establish the monthly payment.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "current_rent",
+      "value": 1000,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said current rent is $1,000.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "proposed_rent",
+      "value": 1400,
+      "unit": "$/month",
+      "source": "stated",
+      "source_detail": "You said proposed rent is $1,400.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_deadline",
+      "value": "2027-02-01",
+      "unit": "date",
+      "source": "stated",
+      "source_detail": "You explicitly provided February 1, 2027.",
+      "edited_by_user": false
+    },
+    {
+      "variable": "goal_description",
+      "value": "Move to a new apartment",
+      "unit": "",
+      "source": "stated",
+      "source_detail": "You want to move.",
+      "edited_by_user": false
+    }
+  ],
+  "extra_inputs": {},
+  "answers": [],
+  "parameters": {},
+  "extraction_meta": {
+    "goal_summary": "Review the budget for moving to a new apartment.",
+    "confidence_note": "Extra variables are included. This scenario requires a different calculator."
+  }
+}
