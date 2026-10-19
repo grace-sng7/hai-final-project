@@ -51,10 +51,10 @@ class ExtractionIntegration(unittest.TestCase):
             'future_metadata': {'preserved': True},
         }
 
-    def test_exact_notebook_prompt(self):
-        notebook = json.loads((ROOT / 'show_your_work_extraction.ipynb').read_text())
-        nodes = ast.parse(''.join(notebook['cells'][4]['source'])).body
-        prompt = next(ast.literal_eval(n.value) for n in nodes if isinstance(n, ast.Assign)
+    def test_prompt_matches_root_extraction_module(self):
+        """backend_reference prompt must stay identical to SYSTEM_PROMPT in the repo-root extraction.py."""
+        tree = ast.parse((ROOT / 'extraction.py').read_text())
+        prompt = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
                       and any(isinstance(t, ast.Name) and t.id == 'SYSTEM_PROMPT' for t in n.targets))
         self.assertEqual(extraction_service.SYSTEM_PROMPT, prompt)
 
