@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { startCalculation } from '@/lib/calculation-runner';
 import { presentResponse } from '@/lib/presentation-model';
 import DemoInputs from './demo-inputs';
+import { categories, sampleFor, uncertaintiesFor, type DemoSample } from '@/lib/mock/data';
 import { ResultView } from './result-view';
 import { type ExtractionResponse, type ExtractionService, validateExtraction } from '@/lib/extraction';
 import { extractionService, calculationService } from '@/lib/services';
@@ -43,17 +44,19 @@ export default function Workspace({ service = extractionService, calculator = ca
   const current = currentResult(app, pendingText);
   const response: CalculationResponse | null = !raw ? null : presentResponse(raw, current ?? {
     ...emptyContent(), information: app.result?.information ?? [], questions: app.result?.questions ?? [], assumptions: app.result?.assumptions ?? [], parameters: app.result?.parameters ?? [], status: 'stale', message: pendingText ? 'Finish your edits or apply pending corrections before using an answer.' : 'Updating your calculation…',
-  }, Object.keys(app.edits).length > 0 || Object.keys(app.answers).length > 0 || pendingText);
+  }, Object.keys(app.edits).length > 0 || Object.keys(app.answers).length > 0 || pendingText, demoMode ? uncertaintiesFor(original) : undefined);
+  const example = demoMode ? sampleFor(original) : undefined;
   const changed = () => { revision.current++; };
   const context = () => ({ user_message: original, reference_date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()), timezone: 'America/New_York' });
   const reset = () => { version.current++; revision.current++; dispatch({ type: 'reset' }); setInput(''); setCorrection(''); setGoalDraft(''); setGoalEditing(false); setDirtyEditors({}); setHistory([]); setBusy(false); setError(''); setStatus(''); };
-  async function extract() {
+  async function extract(message = input) {
     if (busy) return;
     const request = ++version.current; setBusy(true); setError('');
-    try { const extraction = validateExtraction(await service.extract({ ...context(), user_message: input })); if (request === version.current) { dispatch({ type: 'load', question: input, extraction }); setStatus('Ready to explore'); } }
+    try { const extraction = validateExtraction(await service.extract({ ...context(), user_message: message })); if (request === version.current) { dispatch({ type: 'load', question: message, extraction }); setStatus('Ready to explore'); } }
     catch (e) { if (request === version.current) setError((e as Error).message); }
     finally { if (request === version.current) setBusy(false); }
   }
+  const runExample = (sample: DemoSample) => { setInput(sample.message); void extract(sample.message); };
   async function apply() {
     if (!raw || busy) return;
     const content = [goalDraft && `Goal correction: ${goalDraft}`, correction,
@@ -78,12 +81,12 @@ export default function Workspace({ service = extractionService, calculator = ca
     else if (!app.openSteps[step]) dispatch({ type: 'toggle', step });
     requestAnimationFrame(() => document.getElementById(`step-${step}`)?.scrollIntoView({ block: 'start' }));
   };
-  return <><header className="site-header"><Link className="brand" href="/" onClick={event => { event.preventDefault(); reset(); }} aria-label="Show Your Work — new question"><span className="sun">☀</span>Show Your Work</Link><div className="header-right"><span className="demo">{demoMode ? 'Demo mode' : 'Show Your Work'}</span><button className="new-question" onClick={reset}>＋ New question</button></div></header>
+  return <><header className="site-header"><Link className="brand" href="/" onClick={event => { event.preventDefault(); reset(); }} aria-label={demoMode ? 'Show Your Work — reset demo' : 'Show Your Work — new question'}><span className="sun">☀</span>Show Your Work</Link><div className="header-right"><span className="demo">{demoMode ? 'Demo mode' : 'Show Your Work'}</span><button className="new-question" onClick={reset}>{demoMode ? '\u21ba Reset demo' : '＋ New question'}</button></div></header>
     <main className={raw || busy ? 'workspace-page' : 'landing-page'}><div aria-live="polite" className="sr-only">{busy ? 'Reviewing your description' : status}</div>
-      {!raw && !busy && <section className="intro"><span className="eyebrow">A little clarity goes a long way</span><h1>What’s on your mind?</h1><p>A trip, a new laptop, a fresh start.<br />Let’s make the numbers a little less mysterious.</p><div className="input-card"><label htmlFor="description">Tell us what you’re working toward</label><textarea id="description" value={input} onChange={e => setInput(e.target.value)} placeholder="Describe your goal, the numbers you know, and anything you’re unsure about…" /><div className="input-footer"><span>{demoMode ? 'Demo mode · choose an example below.' : 'Start with the numbers you know.'}</span><button className="primary" disabled={!input.trim()} onClick={extract}>Continue <span>→</span></button></div></div>{demoMode && <DemoInputs onSelect={message => { setInput(message); setError(''); }} />}<div className="principles"><span>◉ See every assumption</span><span>✎ Make it yours</span><span>↔ Explore the trade-offs</span></div></section>}
-      {(raw || busy) && <><div className="user-message"><div><span className="question-caption">Your question</span>{original || input}</div><span className="avatar">Y</span></div><section className="assistant-message" aria-label="Show Your Work response"><span className="assistant-avatar" aria-hidden="true">☀</span><div>{raw ? assistantMessages[app.mode] : assistantMessages.loading}</div></section></>}
+      {!raw && !busy && <section className="intro"><span className="eyebrow">A little clarity goes a long way</span><h1>What’s on your mind?</h1><p>A trip, a new laptop, a fresh start.<br />Let’s make the numbers a little less mysterious.</p><div className="input-card"><label htmlFor="description">Tell us what you’re working toward</label><textarea id="description" value={input} onChange={e => setInput(e.target.value)} placeholder="Describe your goal, the numbers you know, and anything you’re unsure about…" /><div className="input-footer"><span>{demoMode ? 'Demo mode · choose an example below.' : 'Start with the numbers you know.'}</span><button className="primary" disabled={!input.trim()} onClick={() => extract()}>Continue <span>→</span></button></div></div>{demoMode && <DemoInputs disabled={busy} onSelect={runExample} />}<div className="principles"><span>◉ See every assumption</span><span>✎ Make it yours</span><span>↔ Explore the trade-offs</span></div></section>}
+      {(raw || busy) && <><div className="user-message"><div><span className="question-caption">Your question{example && <span className={`category-tag category-${example.category}`}>{example.title} · {categories[example.category].label}</span>}</span>{original || input}</div><span className="avatar">Y</span></div><section className="assistant-message" aria-label="Show Your Work response"><span className="assistant-avatar" aria-hidden="true">☀</span><div>{raw ? assistantMessages[app.mode] : assistantMessages.loading}</div></section></>}
       {busy && !raw && <section className="working-card skeleton" aria-label="Reviewing your description"><div /><div /><div /></section>}
-      {error && <div className="error" role="alert">{error}{!raw && <button disabled={busy} onClick={extract}>Retry</button>}</div>}
+      {error && <div className="error" role="alert">{error}{!raw && <button disabled={busy} onClick={() => extract()}>Retry</button>}</div>}
       {raw && response && <><section className={`working-card dynamic-workspace ${app.mode === 'quick' ? 'quick-view' : 'guide-view'}`}>
         <div className="mode-selector" role="group" aria-label="How would you like to explore?"><button aria-pressed={app.mode === 'quick'} onClick={() => dispatch({ type: 'mode', mode: 'quick' })}>Quick Calculate</button><button aria-pressed={app.mode === 'guide'} onClick={() => dispatch({ type: 'mode', mode: 'guide' })}>Step-by-Step Guide</button></div>
 <div className="card-header"><div><span className="eyebrow">Your working card</span><h2>{app.mode === 'guide' ? 'Here’s what we understood' : response.status === 'needs_input' ? 'A few details first' : response.status === 'unsupported' ? 'What we can review' : response.status === 'stale' ? 'Updating your working card' : 'Your answer'}</h2>{goalDraft && <p className="annotation">Pending goal correction · {goalDraft}</p>}</div><button onClick={() => setGoalEditing(!goalEditing)}>Edit goal</button></div>

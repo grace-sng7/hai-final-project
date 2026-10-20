@@ -19,7 +19,7 @@ export async function testServiceFlow(load, render) {
   const raw=await new MockExtractionService(undefined,0).extract({...context,user_message:sample.message});
   const state=model.workspaceReducer(model.initialApplicationState(),{type:'load',question:sample.message,extraction:raw});
   const result=await new MockCalculationService().calculate(model.calculationRequest(state));
-  assert.equal(result.status,sample.id==='trip'?'conditional':sample.id==='laptop'?'needs_input':'unsupported');
+  assert.equal(result.status,sample.id==='laptop'?'needs_input':'conditional');
   assert.ok(render(presentResponse(raw,result),state).includes('Your information'));
  }
  // New topic: a transport contract demonstration, NOT an implemented finance model.

@@ -13,8 +13,10 @@ export interface EditableField {
   help?: string; presentation?: 'detail'; outdated?: boolean;
 }
 export interface Question extends EditableField { required: boolean; correctsFactIndex?: number; extractionQuestionIndices?: number[] }
+// A value that was extracted but remains uncertain, plus the assumption the calculation makes about it.
+export interface Uncertainty { note: string; assumption: string }
 export interface SystemAssumption {
-  id: string; text: string; parameter?: EditableField; reviewLabel?: string;
+  id: string; text: string; parameter?: EditableField; reviewLabel?: string; kind?: 'ambiguous';
 }
 export interface CalculationRequest {
   originalQuestion: string;
@@ -25,7 +27,7 @@ export interface CalculationRequest {
   answerFactBindings: Record<string, number>;
 }
 interface ResponseContent {
-  information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean })[];
+  information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean; uncertainty?: Uncertainty })[];
   questions: Question[];
   assumptions: SystemAssumption[];
   parameters: EditableField[];

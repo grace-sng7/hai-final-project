@@ -1,0 +1,14 @@
+{
+  "assumptions": [
+    { "variable": "monthly_income", "value": 2500, "unit": "$/month", "source": "stated", "source_detail": "User explicitly stated their after-tax monthly income." },
+    { "variable": "monthly_expenses", "value": 1800, "unit": "$/month", "source": "stated", "source_detail": "User explicitly stated their monthly spending." },
+    { "variable": "monthly_surplus", "value": 700, "unit": "$/month", "source": "inferred", "source_detail": "Calculated as monthly_income - monthly_expenses." },
+    { "variable": "current_savings", "value": 2000, "unit": "$", "source": "stated", "source_detail": "User explicitly stated their current savings." },
+    { "variable": "goal_amount", "value": 3500, "unit": "$", "source": "stated", "source_detail": "User explicitly stated the cost of their trip." },
+    { "variable": "goal_deadline", "value": 6, "unit": "months", "source": "stated", "source_detail": "User explicitly stated the timeframe for their trip." },
+    { "variable": "goal_description", "value": "trip", "unit": null, "source": "stated", "source_detail": "User explicitly stated their goal is a trip." }
+  ],
+  "clarification_questions": [],
+  "goal_summary": "The user wants to know if they can afford a $3,500 trip in 6 months, given their current income, expenses, and savings.",
+  "confidence_note": "High confidence in extracting all stated financial variables and inferring the monthly surplus."
+}

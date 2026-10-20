@@ -12,7 +12,7 @@ export class MockCalculationService implements CalculationService {
   }
 }
 async function demoResponse(request: CalculationRequest) {
-  if (samples.slice(0, 2).some(sample => sample.message === request.originalQuestion)) {
+  if (samples.some(sample => sample.message === request.originalQuestion)) {
     // Independent demo implementation, retaining its explicit snapshot safety checks.
     return new LocalDemoCalculationService().calculate(request);
   }

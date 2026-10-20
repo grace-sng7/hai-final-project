@@ -1,5 +1,5 @@
 import type { ExtractionResponse } from './extraction';
-import type { CalculationResponse } from './calculation-contract';
+import type { CalculationResponse, Uncertainty } from './calculation-contract';
 import { editingControl } from './field-values';
 import { label } from './workspace-model';
 
@@ -13,7 +13,7 @@ export function extractionInformation(raw: ExtractionResponse): CalculationRespo
     source: a.source, sourceDetail: a.source_detail, confirmable: true,
   }));
 }
-export function presentResponse(raw: ExtractionResponse, response: CalculationResponse, changed = false): CalculationResponse {
+export function presentResponse(raw: ExtractionResponse, response: CalculationResponse, changed = false, uncertainties?: Record<string, Uncertainty>): CalculationResponse {
   const covered = new Set(response.questions.flatMap(q => q.extractionQuestionIndices ?? []));
   const originals = raw.clarification_questions.flatMap((q, index) => covered.has(index) ? [] : [{
     id: `extraction-question-${index}`, label: q.question, help: q.why_it_matters, unit: '', value: '',
@@ -21,7 +21,9 @@ export function presentResponse(raw: ExtractionResponse, response: CalculationRe
   }]);
   const information = extractionInformation(raw).map(field => {
     const metadata = response.information.find(f => f.binding.kind === 'fact' && field.binding.kind === 'fact' && f.binding.index === field.binding.index);
-    const result = metadata ? { ...field, ...metadata, id: field.id, source: field.source, sourceDetail: field.sourceDetail } : field;
+    const base = metadata ? { ...field, ...metadata, id: field.id, source: field.source, sourceDetail: field.sourceDetail } : field;
+    const uncertainty = field.binding.kind === 'fact' ? uncertainties?.[raw.assumptions[field.binding.index]?.variable] : undefined;
+    const result = uncertainty ? { ...base, uncertainty } : base;
     return changed && field.source === 'inferred' ? { ...result, outdated: true, confirmable: false } : result;
   });
   const extras = response.information.filter(f => f.binding.kind !== 'fact').map(f => ({ ...f, id: `calculation-${f.id}` }));
