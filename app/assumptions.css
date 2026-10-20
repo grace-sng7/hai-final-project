@@ -263,3 +263,25 @@
 .assistant-message { align-items: flex-start; }
 .assistant-message .assistant-avatar { border-radius: 50%; background: var(--primary-tint); }
 .assistant-message > div { max-width: 70ch; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 5px 18px 18px 18px; }
+
+/* Keep each question's skip action beside its explanatory text. */
+.question-help-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.question-help-row > small { flex: 1; min-width: 0; }
+.question-help-row > button { flex-shrink: 0; }
+
+.quick-view #step-2 .question-prompt { background: var(--warning-background); color: var(--warning-text); border: 1px solid color-mix(in srgb, var(--warning-text) 30%, var(--warning-background)); border-radius: 11px; padding: 14px 16px; }
+
+/* Compact question introduction and inline known facts. */
+.dynamic-workspace.quick-view #step-2 > div:not([hidden]) { padding-top: 0; }
+.quick-view #step-2 > div > .question-prompt { margin-top: 0; }
+.question-known-facts { margin: 10px 0; font-variant-numeric: tabular-nums; }
+.question-known-facts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.question-known-facts dt { color: var(--text-soft); }
+.question-known-facts dd { margin: 0; font-weight: 500; white-space: nowrap; }
+
+/* The savings-gap label needs a full row in either answer mode. */
+.scenario-summary > .savings-gap-metric { grid-column: 1 / -1; }
+
+.question-help-row > button:disabled { opacity: .45; cursor: not-allowed; }
+
+.scenario-assumptions-note { display: block; margin: 6px 0 12px; font-size: 13px; }

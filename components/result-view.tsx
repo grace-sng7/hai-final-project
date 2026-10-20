@@ -1,5 +1,6 @@
 'use client';
 import { useId, useState, type ReactNode } from 'react';
+import { conciseScenarioAnswer } from '../lib/presentation-model';
 import { parseEdit } from '../lib/field-values';
 import { canonicalParameters } from '../lib/calculation-contract';
 import type { AssumptionValue } from '../lib/extraction';
@@ -11,7 +12,7 @@ function display(value: AssumptionValue, unit: string) {
   const v = typeof value === 'number' ? unit.startsWith('$') ? money(value) : value.toLocaleString('en-US') : value;
   return `${v}${unit === '$/month' ? ' / month' : unit && unit !== '$' ? ` ${unit}` : ''}`;
 }
-export function FieldControl({ field, app, onChange, disabled = false, valueOverride, scenario = false }: { scenario?: boolean; valueOverride?: AssumptionValue; field: EditableField; app: ApplicationState; onChange: ChangeValue; disabled?: boolean }) {
+export function FieldControl({ field, app, onChange, disabled = false, valueOverride, scenario = false, helpAction }: { helpAction?: ReactNode; scenario?: boolean; valueOverride?: AssumptionValue; field: EditableField; app: ApplicationState; onChange: ChangeValue; disabled?: boolean }) {
   const id = useId();
   const value = valueOverride === undefined ? boundValue(app, field.binding, field.value) : valueOverride;
   const c = field.control;
@@ -23,8 +24,31 @@ export function FieldControl({ field, app, onChange, disabled = false, valueOver
     {c.type === 'select' ? <select id={id} value={String(value ?? '')} disabled={disabled} onChange={e => update(e.target.value)}><option value="">Choose…</option>{c.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select> : <>
       <div className={scenario && c.type !== 'range' ? 'scenario-value-input' : undefined}>{currency && c.type !== 'range' && <span aria-hidden="true">$</span>}<input id={id} type={c.type} value={value ?? ''} min={c.min} max={c.max} step={c.step ?? 'any'} disabled={disabled} onChange={e => update(e.target.value)} aria-describedby={field.help ? `${id}-help` : undefined} /></div>
       {c.type === 'range' && !scenario && <input aria-label={`${field.label} exact amount`} type="number" min={c.min} max={c.max} step={c.step ?? 'any'} value={value ?? ''} disabled={disabled} onChange={e => update(e.target.value)} />}
-    </>}{field.help && <small id={`${id}-help`} className="muted">{field.help}</small>}</div>;
+    </>}{(field.help || helpAction) && <div className="question-help-row">{field.help && <small id={`${id}-help`} className="muted">{field.help}</small>}{helpAction}</div>}</div>;
 }
+// Keep a missing-input field mounted while the user types a complete amount.
+// Commit on blur/Enter so partial digits cannot remove the question or reorder the card.
+function QuestionControl({ field, app, onChange, onDraft, skippable = false }: { skippable?: boolean; field: EditableField; app: ApplicationState; onChange: ChangeValue; onDraft: (id: string, dirty: boolean) => void }) {
+  const [draft, setDraft] = useState<{ value: AssumptionValue } | null>(null);
+  const variable = field.binding.kind === 'fact' ? app.extraction?.assumptions[field.binding.index]?.variable : field.binding.kind === 'answer' ? field.binding.key.replace(/^input-/, '') : undefined;
+  const skipKey = variable ? `skip_input_${variable}` : '';
+  const selectedSkip = Object.keys(app.parameters).find(key => key.startsWith('skip_input_') && app.parameters[key] === '1');
+  const skipped = !!skipKey && selectedSkip === skipKey;
+  const commit = () => {
+    if (!draft) return;
+    onChange(field.binding, draft.value);
+    setDraft(null);
+    onDraft(field.id, false);
+  };
+  return <div onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) commit(); }}
+    onKeyDown={event => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.target.blur(); }}>
+    <FieldControl field={field} app={app} disabled={skipped} helpAction={skippable && skipKey ? skipped ? <button aria-label={`Answer instead: ${field.label}`} onClick={() => onChange({ kind: 'parameter', key: skipKey }, 0)}>Answer instead</button> : <button aria-label={`Skip: ${field.label}`} disabled={!!selectedSkip} onClick={() => { setDraft(null); onDraft(field.id, false); onChange({ kind: 'parameter', key: skipKey }, 1); }}>Skip</button> : undefined} valueOverride={draft ? draft.value : undefined} onChange={(_, value) => {
+      setDraft({ value });
+      onDraft(field.id, true);
+    }} />
+  </div>;
+}
+
 export function InformationCard({ field, app, onChange, onDraft, onRevert, onConfirm }: { onConfirm?: (id: string, signature: string) => void; field: CalculationResponse['information'][number]; app: ApplicationState; onChange: ChangeValue; onDraft: (id: string, dirty: boolean) => void; onRevert: (index: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -55,21 +79,29 @@ export function ResultView({ response, app, onChange, onDraft, onRevert, onStep,
   const template = success ? response.answer : retained && (retained.status === 'ready' || retained.status === 'conditional') ? retained.answer : null;
   const templateFields = success ? canonicalParameters(response) : retained ? canonicalParameters(retained) : [];
   const controls = canonicalParameters(response);
-  const baseSections = app.mode === 'quick' ? quickSections(response) : [1, 2, 3, 4];
+  const answerApp = refreshing && success ? { ...app, parameters: {
+    ...app.parameters, ...Object.fromEntries(templateFields.flatMap(p => p.binding.kind === 'parameter' ? [[p.binding.key, String(p.value ?? '')]] : [])),
+  } } : app;
+  const goalIndex = app.extraction?.assumptions.findIndex(a => a.variable === 'goal_amount') ?? -1;
+  const conciseAnswer = conciseScenarioAnswer(response, goalIndex >= 0 ? boundValue(answerApp, { kind: 'fact', index: goalIndex }, app.extraction!.assumptions[goalIndex].value) : null);
+  const keepQuestionsOpen = app.mode === 'quick' && response.questions.length > 0 && app.parameters.explore_unresolved !== '1';
+  const baseSections = app.mode === 'quick' ? keepQuestionsOpen ? [2, ...quickSections(response).filter(section => section !== 2)] : quickSections(response) : [1, 2, 3, 4];
   const sections = activeInline && !baseSections.includes(4) ? [4, ...baseSections] : baseSections;
   const content: Record<number, ReactNode> = {
-    1: <>{response.information.length ? <InformationGroups response={response} app={app} onChange={onChange} onDraft={onDraft} onRevert={onRevert} onConfirm={onConfirm} /> : <p className="muted">No information returned yet.</p>}<p className="muted information-hint">Confirmation is optional.</p>{app.extraction && <details className="additional-context"><summary>More context</summary><p>{app.extraction.goal_summary}</p><p>{app.extraction.confidence_note}</p></details>}</>,
-    2: <>{!response.questions.length && <p className="muted">No questions need answering here.</p>}{response.status === 'needs_input' && response.message && <p role="status">{response.message}</p>}{response.questions.map(q => <div className="question" key={q.id}><FieldControl field={q} app={app} onChange={onChange} />{q.extractionQuestionIndices?.some(i => app.extraction?.clarification_questions[i]?.question !== q.label) && <details><summary>Original extraction questions</summary>{q.extractionQuestionIndices.map(i => <p key={i}>{app.extraction?.clarification_questions[i]?.question}</p>)}</details>}<small className="annotation">{q.required ? 'Required' : 'Optional clarification'}</small></div>)}</>,
+    1: <>{response.information.length ? <InformationGroups response={response} app={app} onChange={onChange} onDraft={onDraft} onRevert={onRevert} onConfirm={onConfirm} /> : <p className="muted">No information returned yet.</p>}<p className="muted information-hint">Confirmation is optional.</p></>,
+    2: <>{!response.questions.length && <p className="muted">No questions need answering here.</p>}{response.status === 'needs_input' && response.message && <p role="status" className="question-prompt">{response.message}</p>}{response.status === 'needs_input' && response.metrics.length > 0 && <dl className="question-known-facts">{response.metrics.map((m, i) => <div key={i} className={m.label.includes("(before reserves)") ? "savings-gap-metric" : undefined}><dt>{m.label.replace("before reserves", "before\u00a0reserves")}</dt><dd>{m.value}</dd></div>)}</dl>}{response.questions.map(q => <div className="question" key={q.id}><QuestionControl field={q} app={app} onChange={onChange} onDraft={onDraft} skippable />{q.required && <small className="annotation">Required</small>}</div>)}</>,
     3: <div className="formula-list">{(!success || !response.explanations.length) && <p className="muted">Calculations will appear when a supported result is available.</p>}{success && response.explanations.map((step, i) => <div key={i}><strong>{step.label}</strong><p>{step.text}</p></div>)}</div>,
-    4: <div className="dynamic-answer" data-result-status={response.status}><span className="answer-status">{({ ready: 'Ready', conditional: 'Conditional estimate', needs_input: 'More information needed', unsupported: 'Calculation unavailable', stale: refreshing ? 'Updating' : 'Needs recalculation' })[response.status]}</span>{template && (success || activeInline) && <InlineAnswer answer={template} fields={templateFields} app={app} onChange={onChange} current={success} onFocus={setActiveInline} onBlur={() => setActiveInline(null)} />}{!success && <p role="status">{response.message}</p>}
+    4: <div className="dynamic-answer" aria-busy={refreshing} data-result-status={response.status}><span className="answer-status">{refreshing && success ? 'Updating — previous result shown' : ({ ready: 'Ready', conditional: 'Conditional estimate', needs_input: 'More information needed', unsupported: 'Calculation unavailable', stale: refreshing ? 'Updating' : 'Needs recalculation' })[response.status]}</span>{template && (success || activeInline) && <InlineAnswer answer={conciseAnswer ?? template} fields={templateFields} app={answerApp} onChange={onChange} current={success} onFocus={setActiveInline} onBlur={() => setActiveInline(null)} />}{!success && <p role="status">{response.message}</p>}
+      {conciseAnswer && <><small className="scenario-assumptions-note muted">Based on your selected assumptions.</small><ScenarioControls fields={controls} app={app} onChange={onChange} /></>}
+      {success && response.parameters.some(p => p.id.startsWith('hypothetical_')) && <dl className="scenario-summary">{response.metrics.filter(m => !m.label.startsWith('Hypothetical')).map((m, i) => <div key={i} className={m.label.includes("(before reserves)") ? "savings-gap-metric" : undefined}><dt>{m.label.replace("before reserves", "before\u00a0reserves")}</dt><dd>{m.value}</dd></div>)}</dl>}
       {success && response.assumptions.length > 0 && <ReviewReminder assumptions={response.assumptions} onReview={id => document.getElementById(`parameter-${id}`)?.querySelector<HTMLElement>('input, select')?.focus()} />}
-    {(success || stale && refreshing) && controls.length > 0 && <ScenarioControls fields={controls} app={app} onChange={onChange} />}
-            {(success || response.status === 'unsupported') && (response.metrics.length > 0 || success && !!response.answer.detail) && <details className="answer-limitations"><summary>Supporting details</summary><dl className="scenario-summary">{response.metrics.map((m, i) => <div key={i}><dt>{m.label}</dt><dd>{m.value}</dd></div>)}</dl>{success && response.answer.detail && <p>{response.answer.detail}</p>}</details>}
+    {!conciseAnswer && (success || stale && refreshing) && controls.length > 0 && <ScenarioControls fields={controls} app={app} onChange={onChange} />}
+            {(success || response.status === 'unsupported' || response.status === 'needs_input') && (response.metrics.length > 0 || success && !!response.answer.detail) && <details className="answer-limitations"><summary>Supporting details</summary><dl className="scenario-summary">{response.metrics.map((m, i) => <div key={i} className={m.label.includes("(before reserves)") ? "savings-gap-metric" : undefined}><dt>{m.label.replace("before reserves", "before\u00a0reserves")}</dt><dd>{m.value}</dd></div>)}</dl>{success && response.answer.detail && <p>{response.answer.detail}</p>}</details>}
       {success && response.limitations.length > 0 && <details className="answer-limitations"><summary>Limitations</summary><ul>{response.limitations.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
     {response.nextActions.map((a, i) => <button key={i} onClick={() => onAction(a.action)}>{a.label}</button>)}{stale && refreshing && <span className="sr-only" role="status">Updating calculation</span>}</div>,
   };
   return <>{sections.map((number, index) => {
-    const forced = app.mode === 'quick' && (number === 4 || (response.status === 'needs_input' || stale && response.questions.some(q => q.required)) && number === 2);
+    const forced = app.mode === 'quick' && (number === 4 || keepQuestionsOpen && number === 2 || (response.status === 'needs_input' || stale && response.questions.some(q => q.required)) && number === 2);
     const open = app.mode === 'quick' ? forced || !!app.openSteps[number] : guideSectionOpen(app, response, number) || number === 4 && !!activeInline;
     return <div key={number}>{success && app.mode === 'quick' && index === 1 && <h3 className="behind-answer-heading">Behind your answer</h3>}<SupportingSection number={number} title={titles[number]} open={open} onToggle={() => onStep(number)}>{content[number]}</SupportingSection></div>;
   })}</>;
@@ -97,8 +129,7 @@ export function ScenarioControls({ fields, app, onChange }: { fields: EditableFi
 }
 function InformationGroups(props: { response: CalculationResponse; app: ApplicationState; onChange: ChangeValue; onDraft: (id: string, dirty: boolean) => void; onRevert: (index: number) => void; onConfirm?: (id: string, signature: string) => void }) {
   const primary = props.response.information.filter(field => field.presentation !== 'detail');
-  const details = props.response.information.filter(field => field.presentation === 'detail');
   const sources = [...new Set(primary.map(field => field.source))];
   const card = (field: CalculationResponse['information'][number]) => <InformationCard key={field.id} field={field} app={props.app} onChange={props.onChange} onDraft={props.onDraft} onRevert={props.onRevert} onConfirm={props.onConfirm} />;
-  return <><div className="information-grid">{sources.map(source => <div className="information-source" key={source}><p className="source-caption">{source === 'stated' ? 'You told us' : source === 'inferred' ? 'We inferred' : source === 'missing' ? 'Still to clarify' : source}</p>{primary.filter(field => field.source === source).map(card)}</div>)}</div>{details.length > 0 && <details className="metadata-details"><summary>Other details ({details.length})</summary>{details.map(card)}</details>}</>;
+  return <><div className="information-grid">{sources.map(source => <div className="information-source" key={source}><p className="source-caption">{source === 'stated' ? 'You told us' : source === 'inferred' ? 'We inferred' : source === 'missing' ? 'Still to clarify' : source}</p>{primary.filter(field => field.source === source).map(card)}</div>)}</div></>;
 }

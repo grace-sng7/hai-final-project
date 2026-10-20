@@ -41,7 +41,7 @@ export function toCalculateWire(request: CalculationRequest): CalculateWireReque
 }
 
 // ---------- Response: POST /calculate -> frontend ----------
-export interface WireMissingInput { variable: string; label?: string | null; unit?: string | null; help?: string | null; input_type?: 'number' | 'text' | 'date' | null }
+export interface WireMissingInput { required?: boolean; variable: string; label?: string | null; unit?: string | null; help?: string | null; input_type?: 'number' | 'text' | 'date' | null }
 export interface WireParameter { key: string; label: string; value: number; unit?: string | null; min?: number | null; max?: number | null; step?: number | null }
 export interface CalculateWireResponse {
   status: 'ready' | 'conditional' | 'needs_input' | 'unsupported';
@@ -127,7 +127,7 @@ export function fromCalculateWire(raw: unknown, request: CalculationRequest): Ca
       unit, value: blank(current) ? '' : current,
       binding: factIndex >= 0 ? { kind: 'fact', index: factIndex } : { kind: 'answer', key: answerKey },
       control: kind === 'number' ? { type: 'number', min: 0, step: unit === 'months' ? 1 : 0.01 } : { type: kind },
-      required: true,
+      required: o.required !== false,
       extractionQuestionIndices: qIndex >= 0 ? [qIndex] : [],
     }];
   });

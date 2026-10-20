@@ -68,6 +68,7 @@ class CalculateRequest(BaseModel):
 
 
 class MissingInput(BaseModel):
+    required: bool = True
     variable: str
     label: Optional[str] = None
     unit: Optional[str] = None

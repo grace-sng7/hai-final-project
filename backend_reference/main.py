@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import extraction_service
-import savings_model
+import savings_goal_model
 from contract import CalculateRequest, CalculateResponse, CorrectRequest, ExtractionResponse, ExtractRequest
 
 app = FastAPI(title="Show Your Work backend")
@@ -32,4 +32,4 @@ def correct(req: CorrectRequest):
 def calculate(req: CalculateRequest):
     # To add a new question type: write another module with the same dict-in/dict-out shape,
     # and choose between models here (e.g. by req.extraction_meta.get("question_type")).
-    return savings_model.calculate(req.model_dump())
+    return savings_goal_model.calculate(req.model_dump())

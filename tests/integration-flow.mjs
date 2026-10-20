@@ -85,7 +85,7 @@ export async function testServiceFlow(load, render) {
   const mock=new MockCalculationService(request=>new LocalDemoCalculationService([variant]).calculate(request));
   const app=model.workspaceReducer(model.initialApplicationState(),{type:'load',question:'Unrelated fixture label',extraction:variant});
   const output=presentResponse(variant,await mock.calculate(model.calculationRequest(app)));
-  assert.equal(output.status,'conditional');assert.equal(output.information.length,variant.assumptions.length);assert.equal(output.questions.length,questionCount);
+  assert.equal(output.status,'conditional');assert.equal(output.information.length,variant.assumptions.filter(a=>a.value!==null).length);assert.equal(output.questions.length,0);
   assert.ok(output.metrics.some(m=>m.value===model.money(amount)));
   for(const mode of ['quick','guide']) assert.ok(render(output,{...app,mode}).includes('Your information'));
  }
