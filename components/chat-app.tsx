@@ -7,7 +7,7 @@ import type { ExtractionResponse, ExtractionService } from '../lib/extraction';
 import { liveCalculationService, liveExtractionService } from '../lib/http-services';
 import { calculationService as mockCalculation, extractionService as mockExtraction } from '../lib/services';
 import { label } from '../lib/workspace-model';
-import { AnswerCard, QuickReplies, Stepper, Typing, Understood, WorkingSheet, show } from './chat-parts';
+import { AnswerCard, QuickReplies, Status, Typing, Understood, WorkingSheet, show } from './chat-parts';
 import s from '../app/chat/chat.module.css';
 
 const live = process.env.NEXT_PUBLIC_BACKEND_MODE === 'live';
@@ -181,7 +181,7 @@ export default function ChatApp() {
   return <div className={s.page}>
     <header className={s.header}>
       <button type="button" className={s.brand} onClick={reset} aria-label="Start over"><span aria-hidden="true">☀</span> Show Your Work</button>
-      <Stepper stage={stage} />
+      <Status stage={stage} active={!empty} />
       <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" onClick={reset}>New chat</button></div>
     </header>
     <div className={s.body}>

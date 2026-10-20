@@ -86,7 +86,8 @@ export function WorkingSheet({ extraction, math }: { extraction: ExtractionRespo
   </aside>;
 }
 
-const STEPS = ['Understand', 'Clarify', 'Calculate', 'Answer'];
-export function Stepper({ stage }: { stage: number }) {
-  return <ol className={s.stepper} aria-label="Progress">{STEPS.map((t, i) => <li key={t} className={i < stage ? s.done : i === stage ? s.active : ''} aria-current={i === stage ? 'step' : undefined}><span>{i + 1}</span>{t}</li>)}</ol>;
+// The four-step progression guides the conversation but is not shown as steps: just a quiet status line.
+const STATUS = ['Getting the picture', 'A couple of questions', 'Running the numbers', 'Here’s where you stand'];
+export function Status({ stage, active }: { stage: number; active: boolean }) {
+  return active ? <p className={s.status} role="status">{STATUS[stage]}</p> : null;
 }
