@@ -18,6 +18,10 @@ const calculator: CalculationService = live ? liveCalculationService : mockCalcu
 const SKIP = 'Not sure, skip this';
 const RETRY = 'Try again';
 const DEEPER = 'Sure, let’s go deeper';
+const ESTIMATE = 'Use a rough estimate';
+const DONT_KNOW = /(don'?t know|dont know|not sure|no idea|idk|unsure|can'?t say)/i;
+// A bare "I don't know": no numbers and short. Mixed answers ("income 5000, cost not sure") go to the model instead.
+const isDontKnow = (text: string) => DONT_KNOW.test(text) && !/\d/.test(text) && text.length <= 60;
 type Mode = 'quick' | 'detailed';
 const SUGGESTIONS = [
   'I make $2,400 a month after tax, rent is $1,000 and I spend about $600 on everything else. I have $900 saved. Can I afford a $2,500 laptop by next March?',
@@ -64,7 +68,9 @@ export default function ChatApp() {
   const paramsRef = useRef<Record<string, string>>({});
   const asked = useRef<Record<string, number>>({});
   const skipped = useRef<Set<string>>(new Set());
-  const current = useRef<{ targets: string[]; question: string } | null>(null);
+  const current = useRef<{ targets: string[]; question: string; required: boolean } | null>(null);
+  const estimateFor = useRef<string[] | null>(null);   // required items the user couldn't answer
+  const estimated = useRef<Set<string>>(new Set());   // offer an estimate for each item only once
   const retry = useRef<(() => Promise<void>) | null>(null);
   const calcSeq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,9 +94,9 @@ export default function ChatApp() {
     }
     return null;
   };
-  const ask = (targets: string[], question: string, why?: string) => {
+  const ask = (targets: string[], question: string, why?: string, required = false) => {
     for (const t of targets) asked.current[t] = (asked.current[t] ?? 0) + 1;
-    current.current = { targets, question };
+    current.current = { targets, question, required }; estimateFor.current = null;
     setStage(1);
     bot(question, { note: why, replies: [SKIP] });
   };
@@ -108,9 +114,16 @@ export default function ChatApp() {
         const askable = response.questions.filter(q => q.required).map(q => ({ q, target: q.binding.kind === 'fact' ? value.assumptions[q.binding.index]?.variable ?? q.id : q.binding.key }))
           .filter(x => !skipped.current.has(x.target) && (asked.current[x.target] ?? 0) < 2);
         if (askable.length && modeRef.current === 'quick') {
-          ask(askable.map(x => x.target), `To give you a number I just need ${askable.length > 1 ? 'a few things' : 'one thing'} (rough guesses are fine):\n${askable.map(x => `• ${x.q.label}`).join('\n')}`); return;
+          ask(askable.map(x => x.target), `To give you a number I just need ${askable.length > 1 ? 'a few things' : 'one thing'} (rough guesses are fine, or say “not sure” and I’ll estimate):\n${askable.map(x => `• ${x.q.label}`).join('\n')}`, undefined, true); return;
         }
-        if (askable.length) { ask([askable[0].target], askable[0].q.label, askable[0].q.help); return; }
+        if (askable.length) { ask([askable[0].target], askable[0].q.label, askable[0].q.help, true); return; }
+        // Stuck on required values the user couldn't give: offer a clearly labelled rough estimate (once per item).
+        const stuck = response.questions.filter(q => q.required).map(q => q.binding.kind === 'fact' ? value.assumptions[q.binding.index]?.variable ?? q.id : q.binding.key).filter(t => !estimated.current.has(t));
+        if (stuck.length) {
+          current.current = null; estimateFor.current = stuck; setStage(1);
+          bot(`I’m still missing ${stuck.map(t => label(t).toLowerCase()).join(', ')}. If you don’t know, I can use a rough typical estimate. You’ll see it marked as an estimate, and you can change it any time.`, { replies: [ESTIMATE] });
+          return;
+        }
         current.current = null; setStage(1);
         bot(`I can’t run the numbers yet. ${response.message} Tell me any of the missing pieces whenever you’re ready, and I’ll pick it back up.`);
         return;
@@ -137,6 +150,26 @@ export default function ChatApp() {
     setBusy(true); typing();
     try {
       const before = exRef.current;
+      const pending = estimateFor.current ?? (current.current?.required ? current.current.targets : null);
+      if (before && pending && (message === ESTIMATE || isDontKnow(message))) {
+        pending.forEach(t => estimated.current.add(t)); estimateFor.current = null; current.current = null;
+        const names = pending.map(t => label(t).toLowerCase());
+        const attempt = async () => {
+          const next = await extraction.correct({ ...context(), user_message: originalRef.current, previous_extraction: before,
+            user_correction: `I don't know ${names.join(', ')}. Please use a typical rough estimate for each (a middle-of-the-road figure for this kind of goal), label it inferred, and say in source_detail that it is a rough estimate.` });
+          const diff = changes(before, next);
+          setExtraction(next);
+          bot(diff.length ? `No problem. I used rough estimates: ${diff.join(' · ')}. Change any of them if you know better.` : 'I couldn’t come up with a reasonable estimate for that one.');
+          await proceed(next);
+        };
+        retry.current = async () => { setBusy(true); typing(); try { await attempt(); } catch { failed(); } finally { setBusy(false); } };
+        await attempt(); return;
+      }
+      // "Not sure" on an optional question just skips it, with no model call.
+      if (before && current.current && !current.current.required && isDontKnow(message)) {
+        for (const t of current.current.targets) skipped.current.add(t);
+        current.current = null; bot('No problem, I’ll work without that.'); await proceed(before); return;
+      }
       if (!before) {
         originalRef.current = message;
         const attempt = async () => {
@@ -187,7 +220,7 @@ export default function ChatApp() {
 
   const reset = () => {
     if (timer.current) clearTimeout(timer.current);
-    calcSeq.current++; idRef.current = 0; exRef.current = null; originalRef.current = ''; paramsRef.current = {}; asked.current = {}; skipped.current = new Set(); current.current = null; retry.current = null;
+    calcSeq.current++; idRef.current = 0; estimateFor.current = null; estimated.current = new Set(); exRef.current = null; originalRef.current = ''; paramsRef.current = {}; asked.current = {}; skipped.current = new Set(); current.current = null; retry.current = null;
     setMsgs([]); setEx(null); setParams({}); setStage(0); setText(''); setBusy(false);
   };
   const pick = (value: string) => { setText(value); input.current?.focus(); };
