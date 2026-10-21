@@ -1,2 +1,4 @@
-import AppShell from '@/components/app-shell';
-export default function Home() { return <AppShell />; }
+import type { Metadata } from 'next';
+import ChatApp from '@/components/chat-app';
+export const metadata: Metadata = { title: 'Pennyscope', description: 'Talk it through. See every assumption.' };
+export default function Home() { return <ChatApp />; }

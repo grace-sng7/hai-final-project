@@ -94,6 +94,9 @@ Output:
 "confidence_note":"Low confidence: only the goal type is known; all numbers are missing."}
 """
 
+# Corrections only need the rules and schema, not the long few-shot examples. Cheaper on every call.
+CORRECT_SYSTEM_PROMPT = SYSTEM_PROMPT.split("# Example 1")[0].rstrip() + "\n"
+
 _client: OpenAI | None = None
 
 
@@ -107,12 +110,12 @@ def _get_client() -> OpenAI:
     return _client
 
 
-def _call_llm(prompt: str) -> dict:
+def _call_llm(prompt: str, system: str | None = None) -> dict:
     # >>> 2. If you switch to AWS Bedrock later, only this function changes. <<<
     try:
         response = _get_client().chat.completions.create(
             model=MODEL,
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+            messages=[{"role": "system", "content": system or SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
             temperature=0.2,
             response_format={"type": "json_object"},
         )
@@ -153,4 +156,4 @@ Update the assumptions JSON to reflect the user's corrections.
 Change the source to "stated" for any variable the user just clarified.
 Remove any clarification questions that are now answered.
 Return the updated JSON in the same schema as before."""
-    return _call_llm(prompt)
+    return _call_llm(prompt, system=CORRECT_SYSTEM_PROMPT)
