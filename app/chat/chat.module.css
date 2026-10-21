@@ -12,8 +12,12 @@
 .welcome { margin: auto 0; padding: 24px 0; }
 .welcome h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; }
 .welcome p { color: var(--text-soft); margin: 0 0 18px; }
-.suggestions { display: flex; flex-direction: column; gap: 8px; }
-.suggestions button { text-align: left; border-radius: 16px; padding: 12px 16px; color: var(--ink); }
+.exampleSection { margin-top: 32px; }
+.suggestionsHeading { margin: 0 0 10px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.suggestions { display: flex; flex-direction: column; gap: 6px; }
+.suggestions button { text-align: left; border: 0; border-left: 2px solid var(--track); border-radius: 4px; padding: 8px 12px; background: transparent; color: var(--text-soft); font-size: 14px; line-height: 1.5; font-weight: 400; }
+.suggestions button:hover { background: var(--surface); border-left-color: var(--primary); color: var(--ink); }
+.suggestions button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .row { display: flex; gap: 10px; align-items: flex-start; }
 .row.user { justify-content: flex-end; }
 .avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--primary-tint); color: var(--primary); display: grid; place-items: center; font-size: 15px; }

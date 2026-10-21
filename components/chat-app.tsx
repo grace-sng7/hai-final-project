@@ -242,7 +242,7 @@ export default function ChatApp() {
             {([['quick', 'Quick answer', 'A fast estimate. I only ask what the math needs.'], ['detailed', 'Talk it through', 'I’ll ask a few questions, step by step, for a more precise answer.']] as const).map(([id, title, hint]) =>
               <button key={id} type="button" role="radio" aria-checked={mode === id} className={`${s.mode} ${mode === id ? s.modeOn : ''}`} onClick={() => setMode(id)}><strong>{title}</strong><span>{hint}</span></button>)}
           </div>
-          <div className={s.suggestions}>{SUGGESTIONS.map(t => <button key={t} type="button" onClick={() => pick(t)}>{t}</button>)}</div></div>}
+          <section className={s.exampleSection} aria-labelledby="suggestions-heading"><h2 id="suggestions-heading" className={s.suggestionsHeading}>What you can ask</h2><div className={s.suggestions}>{SUGGESTIONS.map(t => <button key={t} type="button" onClick={() => pick(t)}>{t}</button>)}</div></section></div>}
         {msgs.map(m => m.role === 'user'
           ? <div key={m.id} className={`${s.row} ${s.user}`}><div className={s.bubbleUser}>{m.text}</div></div>
           : <div key={m.id} className={s.row}><span className={s.avatar} aria-hidden="true">☀</span><div className={s.bubble}>
