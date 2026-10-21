@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node tests/contracts.mjs && node tests/backend-wire.mjs"
+    "test": "node tests/contracts.mjs && node tests/backend-wire.mjs && node tests/local-answer.mjs"
   },
   "dependencies": {
     "next": "16.2.4",

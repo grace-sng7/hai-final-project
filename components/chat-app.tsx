@@ -6,6 +6,7 @@ import type { CalculationRequest, CalculationResponse, CalculationService } from
 import type { ExtractionResponse, ExtractionService } from '../lib/extraction';
 import { liveCalculationService, liveExtractionService } from '../lib/http-services';
 import { calculationService as mockCalculation, extractionService as mockExtraction } from '../lib/services';
+import { applyLocalAnswer, parseSimpleAnswer } from '../lib/local-answer';
 import { label } from '../lib/workspace-model';
 import { AnswerCard, QuickReplies, Status, Typing, Understood, WorkingSheet, show } from './chat-parts';
 import s from '../app/chat/chat.module.css';
@@ -153,7 +154,11 @@ export default function ChatApp() {
         bot('No problem, I’ll work without that.'); await proceed(before); return;
       }
       const attempt = async () => {
-        const next = await extraction.correct({ ...context(), user_message: originalRef.current, previous_extraction: before, user_correction: q ? `Answering "${q.question}": ${message}` : message });
+        // A plain number answering a single question needs no model call.
+        const target = q && q.targets.length === 1 ? before.assumptions.find(a => a.variable === q.targets[0]) : undefined;
+        const local = target ? parseSimpleAnswer(message, target.unit) : null;
+        const next = target && local !== null ? applyLocalAnswer(before, target.variable, local, message)
+          : await extraction.correct({ ...context(), user_message: originalRef.current, previous_extraction: before, user_correction: q ? `Answering "${q.question}": ${message}` : message });
         const diff = changes(before, next);
         setExtraction(next); current.current = null;
         if (!diff.length && !q) { bot('Thanks, I’ve noted that. Nothing I use in the numbers changed.'); return; }

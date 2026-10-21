@@ -58,6 +58,18 @@ class ExtractionIntegration(unittest.TestCase):
                       and any(isinstance(t, ast.Name) and t.id == 'SYSTEM_PROMPT' for t in n.targets))
         self.assertEqual(extraction_service.SYSTEM_PROMPT, prompt)
 
+    def test_correction_prompt_is_shorter_but_keeps_rules(self):
+        short = extraction_service.CORRECT_SYSTEM_PROMPT
+        self.assertLess(len(short), len(extraction_service.SYSTEM_PROMPT) * 0.7)
+        self.assertNotIn('# Example 1', short)
+        for text in ('# Source labels', '# Rules', '# Output', 'clarification_questions'):
+            self.assertIn(text, short)
+
+    def test_correct_uses_short_prompt(self):
+        with patch.object(extraction_service, '_call_llm', return_value=self.response) as model:
+            extraction_service.correct('q', '2026-10-19', 'UTC', self.response, 'income 100')
+        self.assertEqual(model.call_args.kwargs['system'], extraction_service.CORRECT_SYSTEM_PROMPT)
+
     def test_extract_route(self):
         with patch.object(extraction_service, '_call_llm', return_value=self.response) as model:
             status, body = asyncio.run(post('/extract', self.request))
