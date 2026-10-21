@@ -44,7 +44,7 @@ export function QuickReplies({ replies, onPick, disabled }: { replies: string[];
 }
 
 // The final answer: a sentence with inline numbers, what-if sliders, and the math behind it.
-export function AnswerCard({ response, interactive, params, onParam }: { response: CalculationResponse; interactive: boolean; params: Record<string, string>; onParam: (key: string, value: string) => void }) {
+export function AnswerCard({ response, interactive, params, onParam, expanded = false }: { response: CalculationResponse; interactive: boolean; params: Record<string, string>; onParam: (key: string, value: string) => void; expanded?: boolean }) {
   const ok = response.status === 'ready' || response.status === 'conditional';
   const fields = canonicalParameters(response);
   const value = (f: EditableField) => params[f.id] ?? String(f.value ?? '');
@@ -60,12 +60,12 @@ export function AnswerCard({ response, interactive, params, onParam }: { respons
     {response.answer.detail && <p className={s.muted}>{response.answer.detail}</p>}
     {sliders.length > 0 && <div className={s.whatIf}><span className={s.chipCaption}>What if…</span>{sliders.map(f => <label key={f.id}><span>{f.label}</span><strong>{f.unit === '$' ? money(Number(value(f))) : value(f)}</strong>
       <input type="range" disabled={!interactive} min={f.control.min} max={f.control.max} step={f.control.step ?? 1} value={value(f)} onChange={e => onParam(f.id, e.target.value)} /></label>)}</div>}
-    <MathPanel response={response} />
+    <MathPanel response={response} expanded={expanded} />
   </div>;
 }
 
-function MathPanel({ response }: { response: CalculationResponse }) {
-  const [open, setOpen] = useState(false);
+function MathPanel({ response, expanded }: { response: CalculationResponse; expanded: boolean }) {
+  const [open, setOpen] = useState(expanded);
   const has = response.explanations.length || response.assumptions.length || response.limitations.length;
   if (!has) return null;
   return <div className={s.math}><button type="button" className={s.link} aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Hide the math' : 'Show the math'}</button>
@@ -87,7 +87,7 @@ export function WorkingSheet({ extraction, math }: { extraction: ExtractionRespo
 }
 
 // The four-step progression guides the conversation but is not shown as steps: just a quiet status line.
-const STATUS = ['Getting the picture', 'A couple of questions', 'Running the numbers', 'Here’s where you stand'];
+const STATUS = ['Getting the picture', 'A couple of questions', 'Getting the numbers ready', 'Here’s where you stand'];
 export function Status({ stage, active }: { stage: number; active: boolean }) {
   return active ? <p className={s.status} role="status">{STATUS[stage]}</p> : null;
 }
