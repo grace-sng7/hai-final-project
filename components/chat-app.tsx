@@ -180,7 +180,7 @@ export default function ChatApp() {
 
   return <div className={s.page}>
     <header className={s.header}>
-      <button type="button" className={s.brand} onClick={reset} aria-label="Start over"><span aria-hidden="true">☀</span> Show Your Work</button>
+      <button type="button" className={s.brand} onClick={reset} aria-label="Start over"><span aria-hidden="true">☀</span> Pennyscope</button>
       <Status stage={stage} active={!empty} />
       <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" onClick={reset}>New chat</button></div>
     </header>

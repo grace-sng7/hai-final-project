@@ -1,4 +1,4 @@
-# Show Your Work: Backend Integration Guide
+# Pennyscope: Backend Integration Guide
 
 [BACKEND_CONTRACT.md](BACKEND_CONTRACT.md) is the single source of truth for the HTTP API. [FRONTEND_README.md](FRONTEND_README.md) contains setup, feature status, testing and handoff steps. This English guide describes integration internals; its UI adapter examples are not a second backend API.
 
@@ -8,7 +8,7 @@ By default the app runs on mock services. Live HTTP routes and adapters are impl
 
 ### Extraction: Grace's current response format
 
-Based on the system prompt, `call_llm(user_message)`, the correction prompt, and the actual printed output in `reference/show_your_work_extraction.ipynb`:
+Based on the system prompt, `call_llm(user_message)`, the correction prompt, and the actual printed output in `reference/pennyscope_extraction.ipynb`:
 
 For the authoritative extraction schema, request envelope and examples, see sections 1 and 2 of [BACKEND_CONTRACT.md](BACKEND_CONTRACT.md).
 

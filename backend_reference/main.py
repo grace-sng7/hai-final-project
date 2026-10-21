@@ -8,7 +8,7 @@ import extraction_service
 import savings_model
 from contract import CalculateRequest, CalculateResponse, CorrectRequest, ExtractionResponse, ExtractRequest
 
-app = FastAPI(title="Show Your Work backend")
+app = FastAPI(title="Pennyscope backend")
 # The frontend talks to us through its own server (no CORS needed), but this makes /docs and direct tests easy.
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
 
