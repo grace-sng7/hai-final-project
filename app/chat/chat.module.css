@@ -19,7 +19,7 @@
 .avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--primary-tint); color: var(--primary); display: grid; place-items: center; font-size: 15px; }
 .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 4px 18px 18px 18px; padding: 12px 16px; max-width: min(620px, 100%); }
 .bubbleUser { background: var(--user-background); color: var(--user-text); border-radius: 18px 18px 4px 18px; padding: 10px 16px; max-width: 80%; white-space: pre-wrap; }
-.bubbleText { margin: 0; }
+.bubbleText { margin: 0; white-space: pre-line; }
 .note, .hint, .muted { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
 .hint { margin-top: 12px; }
 .replies { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
@@ -67,3 +67,9 @@
   .sheetWrap { display: none; position: fixed; inset: 56px 0 0 auto; width: min(320px, 90vw); z-index: 5; box-shadow: -8px 0 24px rgba(0,0,0,.08); }
   .sheetWrap.sheetOpen { display: block; }
   }
+
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.mode { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; border-radius: 16px; padding: 12px 16px; color: var(--ink); }
+.mode span { font-size: 14px; color: var(--text-soft); }
+.modeOn { border-color: var(--primary); background: var(--primary-tint); box-shadow: 0 0 0 1px var(--primary); }
+@media (max-width: 600px) { .modes { grid-template-columns: 1fr; } }

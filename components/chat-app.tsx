@@ -16,6 +16,8 @@ const calculator: CalculationService = live ? liveCalculationService : mockCalcu
 
 const SKIP = 'Not sure, skip this';
 const RETRY = 'Try again';
+const DEEPER = 'Sure, let’s go deeper';
+type Mode = 'quick' | 'detailed';
 const SUGGESTIONS = [
   'I make $2,400 a month after tax, rent is $1,000 and I spend about $600 on everything else. I have $900 saved. Can I afford a $2,500 laptop by next March?',
   'My friends want to do a spring break trip to Miami but I don’t know if I can afford it',
@@ -52,13 +54,16 @@ export default function ChatApp() {
   const [ex, setEx] = useState<ExtractionResponse | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [mode, setModeState] = useState<Mode>('detailed');
+  const modeRef = useRef<Mode>('detailed');
+  const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const idRef = useRef(0);
   const exRef = useRef<ExtractionResponse | null>(null);
   const originalRef = useRef('');
   const paramsRef = useRef<Record<string, string>>({});
   const asked = useRef<Record<string, number>>({});
   const skipped = useRef<Set<string>>(new Set());
-  const current = useRef<{ target: string; question: string } | null>(null);
+  const current = useRef<{ targets: string[]; question: string } | null>(null);
   const retry = useRef<(() => Promise<void>) | null>(null);
   const calcSeq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,9 +87,9 @@ export default function ChatApp() {
     }
     return null;
   };
-  const ask = (target: string, question: string, why?: string) => {
-    asked.current[target] = (asked.current[target] ?? 0) + 1;
-    current.current = { target, question };
+  const ask = (targets: string[], question: string, why?: string) => {
+    for (const t of targets) asked.current[t] = (asked.current[t] ?? 0) + 1;
+    current.current = { targets, question };
     setStage(1);
     bot(question, { note: why, replies: [SKIP] });
   };
@@ -94,12 +99,17 @@ export default function ChatApp() {
     const run = async () => {
       const response = await calculator.calculate(request(originalRef.current, value, paramsRef.current));
       if (response.status === 'ready' || response.status === 'conditional') {
-        current.current = null; setStage(3); push({ role: 'bot', kind: 'answer', response }); return;
+        current.current = null; setStage(3); push({ role: 'bot', kind: 'answer', response });
+        if (modeRef.current === 'quick' && nextQuestion(value)) bot('That’s a quick estimate. I have a few optional questions that could make it more precise.', { replies: [DEEPER] });
+        return;
       }
       if (response.status === 'needs_input') {
         const askable = response.questions.filter(q => q.required).map(q => ({ q, target: q.binding.kind === 'fact' ? value.assumptions[q.binding.index]?.variable ?? q.id : q.binding.key }))
           .filter(x => !skipped.current.has(x.target) && (asked.current[x.target] ?? 0) < 2);
-        if (askable.length) { ask(askable[0].target, askable[0].q.label, askable[0].q.help); return; }
+        if (askable.length && modeRef.current === 'quick') {
+          ask(askable.map(x => x.target), `To give you a number I just need ${askable.length > 1 ? 'a few things' : 'one thing'} (rough guesses are fine):\n${askable.map(x => `• ${x.q.label}`).join('\n')}`); return;
+        }
+        if (askable.length) { ask([askable[0].target], askable[0].q.label, askable[0].q.help); return; }
         current.current = null; setStage(1);
         bot(`I can’t run the numbers yet. ${response.message} Tell me any of the missing pieces whenever you’re ready, and I’ll pick it back up.`);
         return;
@@ -113,14 +123,15 @@ export default function ChatApp() {
   const failed = () => bot('Something went wrong on my side. Your details are saved.', { replies: [RETRY] });
 
   async function proceed(value: ExtractionResponse) {
-    const q = nextQuestion(value);
-    if (q) ask(q.target, q.question, q.why); else await calculate(value);
+    const q = modeRef.current === 'quick' ? null : nextQuestion(value);
+    if (q) ask([q.target], q.question, q.why); else await calculate(value);
   }
 
   async function send(raw: string) {
     const message = raw.trim();
     if (!message || busy) return;
     setText(''); push({ role: 'user', text: message });
+    if (message === DEEPER && exRef.current) { setMode('detailed'); setBusy(true); try { await proceed(exRef.current); } finally { setBusy(false); } return; }
     if (message === RETRY && retry.current) { setBusy(true); typing(); try { await retry.current(); } finally { setBusy(false); } return; }
     setBusy(true); typing();
     try {
@@ -137,7 +148,8 @@ export default function ChatApp() {
       }
       const q = current.current;
       if (message === SKIP && q) {
-        skipped.current.add(q.target); current.current = null;
+        for (const t of q.targets) skipped.current.add(t);
+        current.current = null;
         bot('No problem, I’ll work without that.'); await proceed(before); return;
       }
       const attempt = async () => {
@@ -188,6 +200,10 @@ export default function ChatApp() {
       <main className={s.thread} aria-live="polite">
         {empty && <div className={s.welcome}><h1>What are you thinking about buying or doing?</h1>
           <p>Tell me in your own words. I’ll show you what I understood, ask only what I need, then walk you through the numbers.</p>
+          <div className={s.modes} role="radiogroup" aria-label="How would you like to do this?">
+            {([['quick', 'Quick answer', 'A fast estimate. I only ask what the math needs.'], ['detailed', 'Talk it through', 'I’ll ask a few questions, step by step, for a more precise answer.']] as const).map(([id, title, hint]) =>
+              <button key={id} type="button" role="radio" aria-checked={mode === id} className={`${s.mode} ${mode === id ? s.modeOn : ''}`} onClick={() => setMode(id)}><strong>{title}</strong><span>{hint}</span></button>)}
+          </div>
           <div className={s.suggestions}>{SUGGESTIONS.map(t => <button key={t} type="button" onClick={() => pick(t)}>{t}</button>)}</div></div>}
         {msgs.map(m => m.role === 'user'
           ? <div key={m.id} className={`${s.row} ${s.user}`}><div className={s.bubbleUser}>{m.text}</div></div>
