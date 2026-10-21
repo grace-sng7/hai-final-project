@@ -1,4 +1,4 @@
-"""Show Your Work: LLM extraction step.
+"""Pennyscope: LLM extraction step.
 
 Usage:
     export OPENROUTER_API_KEY=...

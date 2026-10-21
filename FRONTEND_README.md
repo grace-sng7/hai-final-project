@@ -1,4 +1,4 @@
-# Show Your Work — frontend handoff
+# Pennyscope — frontend handoff
 
 This Next.js / React frontend preserves the Worked Notebook design. The team's root README and Grace's original notebook remain unchanged.
 
@@ -36,8 +36,8 @@ Open http://localhost:3000 (or the port printed by Next.js). Without live-mode c
 Create an isolated Python environment **outside the repository**, so it cannot accidentally be committed:
 
 ```sh
-python3 -m venv "$HOME/.venvs/show-your-work"
-"$HOME/.venvs/show-your-work/bin/python" -m pip install -r backend_reference/requirements.txt
+python3 -m venv "$HOME/.venvs/pennyscope"
+"$HOME/.venvs/pennyscope/bin/python" -m pip install -r backend_reference/requirements.txt
 ```
 
 For the current temporary checkout, an environment is already installed at `/private/tmp/syw-team-python-venv`. The checkout and environment under `/private/tmp` are temporary; use a durable local clone for ongoing work. They are not required paths for teammates.
@@ -48,7 +48,7 @@ Start Python (terminal 1):
 
 ```sh
 cd backend_reference
-"$HOME/.venvs/show-your-work/bin/python" -m uvicorn main:app \
+"$HOME/.venvs/pennyscope/bin/python" -m uvicorn main:app \
   --env-file .env.local --reload --port 8000
 ```
 
@@ -77,7 +77,7 @@ From the repository root:
 npm test
 npm run lint
 npm run build
-"$HOME/.venvs/show-your-work/bin/python" -B tests/python-extraction.py
+"$HOME/.venvs/pennyscope/bin/python" -B tests/python-extraction.py
 ```
 
 `npm test` runs contract/state/rendering tests (including 800 response combinations) and backend-wire tests. The separate Python command uses only offline stubs and requires no API key. In the current temporary environment, substitute `/private/tmp/syw-team-python-venv/bin/python` for that interpreter.

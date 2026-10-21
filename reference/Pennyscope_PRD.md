@@ -1,4 +1,4 @@
-# Show Your Work
+# Pennyscope
 
 ## Product Requirements Document
 
@@ -37,7 +37,7 @@ Compatibility means that the frontend data contract and interactions are prepare
 
 ### A. Input state
 
-The header contains Show Your Work and New question. The main area shows What's on your mind?, followed by a multiline text field and a primary Continue button. Supporting text invites users to describe their goal, known numbers, and uncertainties.
+The header contains Pennyscope and New question. The main area shows What's on your mind?, followed by a multiline text field and a primary Continue button. Supporting text invites users to describe their goal, known numbers, and uncertainties.
 
 Phase 1 displays Demo mode. Sample inputs correspond to specific fixtures. Arbitrary input may remain in the text field, but must not produce an unrelated sample response that claims to understand the input. On submission of arbitrary text, show: “This version uses sample data. Please select an example.” Sample buttons must use text consistent with their fixtures.
 
@@ -253,7 +253,7 @@ Later phases add the Python API wrapper, live extraction and correction, a produ
 
 Provide this PRD and the JSON fixtures together with the following implementation instructions.
 
-Build a desktop first React and TypeScript frontend for Show Your Work. Use the third reference layout: natural language conversation creates one large working card inside the conversation. Preserve a warm, calm visual style with a spacious central card, source badges, editable values, and a composer below the card. Stack content on narrow screens. Use a normal page scroll, and at most a compact sticky card header. Do not create accounts or a bank dashboard.
+Build a desktop first React and TypeScript frontend for Pennyscope. Use the third reference layout: natural language conversation creates one large working card inside the conversation. Preserve a warm, calm visual style with a spacious central card, source badges, editable values, and a composer below the card. Stack content on narrow screens. Use a normal page scroll, and at most a compact sticky card header. Do not create accounts or a bank dashboard.
 
 Start with an input view headed “What's on your mind?” and a textarea. Implement a clearly labeled demo mode with sample selectors for the provided trip, laptop, and apartment fixtures. Only sample inputs may return fixture results. Arbitrary text must remain a draft or show the demo limitation, rather than being paired with unrelated sample assumptions.
 
