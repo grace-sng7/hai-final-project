@@ -63,4 +63,20 @@ assert.deepEqual(applyProfile(full, { income: 2000, rent: 900, otherExpenses: 50
 // A plain numeric answer in the chat replaces a profile value and drops the flag.
 assert.equal(fromProfile(applyLocalAnswer(full, 'monthly_income', 3000, '3000').assumptions.find(a => a.variable === 'monthly_income')), false);
 
-console.log('PASS: profile fill, precedence, surplus reset, provenance and privacy');
+// A rent stated in the chat replaces the profile's rent inside the expenses total (profile 700 + 1000, chat rent 1000).
+const move = { ...base, assumptions: [miss('monthly_income', '$/month'), { variable: 'current_rent', value: 1000, unit: '$/month', source: 'stated', source_detail: 'User said' },
+  { variable: 'new_rent', value: 1400, unit: '$/month', source: 'stated', source_detail: 'User said' }, miss('monthly_expenses', '$/month')] };
+const moved = applyProfile(move, { income: 5000, rent: 700, otherExpenses: 1000 });
+const total = moved.assumptions.find(a => a.variable === 'monthly_expenses');
+assert.equal(total.value, 2000, 'chat rent 1000 + profile other 1000, not profile rent 700');
+assert.match(total.source_detail, /rent \$1000 from your message \+ other \$1000/);
+assert.equal(fromProfile(total), true);
+assert.equal(moved.assumptions.find(a => a.variable === 'current_rent').value, 1000, 'the stated rent itself is untouched');
+assert.deepEqual(applyProfile(moved, { income: 5000, rent: 700, otherExpenses: 1000 }), moved, 'stable when re-applied');
+// A missing rent row does not count, and a profile without spending adds nothing.
+assert.equal(applyProfile({ ...move, assumptions: [miss('rent', '$/month'), miss('monthly_expenses', '$/month')] }, { rent: 700, otherExpenses: 1000 }).assumptions[1].value, 1700);
+assert.equal(applyProfile(move, { income: 5000 }).assumptions.find(a => a.variable === 'monthly_expenses').source, 'missing');
+// An expenses total the user stated still beats everything.
+assert.equal(applyProfile({ ...move, assumptions: [...move.assumptions.slice(0, 3), { variable: 'monthly_expenses', value: 2500, unit: '$/month', source: 'stated', source_detail: 'User said' }] }, { rent: 700, otherExpenses: 1000 }).assumptions[3].value, 2500);
+
+console.log('PASS: profile fill, precedence, surplus reset, provenance, privacy and chat rent');
