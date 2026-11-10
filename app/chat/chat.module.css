@@ -77,3 +77,23 @@
 .mode span { font-size: 14px; color: var(--text-soft); }
 .modeOn { border-color: var(--primary); background: var(--primary-tint); box-shadow: 0 0 0 1px var(--primary); }
 @media (max-width: 600px) { .modes { grid-template-columns: 1fr; } }
+
+/* Profile */
+.overlay { position: fixed; inset: 0; background: rgba(30, 30, 50, .28); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.profile { background: var(--surface); border-radius: 20px; padding: 22px 24px; width: min(520px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; box-shadow: 0 18px 48px rgba(0,0,0,.16); }
+.profile h2 { margin: 0 0 4px; font-size: 20px; }
+.profile fieldset { border: 0; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+.profile legend { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 8px; }
+.profile label { display: grid; gap: 4px; font-size: 14px; }
+.profile label > span:first-child { font-weight: 600; }
+.profile input { width: 100%; }
+.moneyInput { display: flex; align-items: center; gap: 6px; }
+.check { grid-template-columns: auto 1fr; align-items: center; }
+.check input { width: auto; }
+.check span { font-weight: 400 !important; }
+.privacy { font-size: 13px; color: var(--success-text); background: var(--success-background); border-radius: 12px; padding: 10px 12px; margin: 16px 0 0; }
+.profileActions { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; margin-top: 16px; }
+.primary { background: var(--primary-control); color: var(--primary-ink); border-color: transparent; }
+.primary:hover { background: var(--primary-readable) !important; }
+.profileBanner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; margin-bottom: 14px; }
+.profileBanner button { padding: 4px 12px; font-size: 14px; }
