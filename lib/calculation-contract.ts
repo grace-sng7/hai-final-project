@@ -25,7 +25,7 @@ export interface CalculationRequest {
   answerFactBindings: Record<string, number>;
 }
 interface ResponseContent {
-  information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean })[];
+  information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean; fromProfile?: boolean })[];
   questions: Question[];
   assumptions: SystemAssumption[];
   parameters: EditableField[];

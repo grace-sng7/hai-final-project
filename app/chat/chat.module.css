@@ -34,6 +34,7 @@
 .chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 5px 12px; border-radius: 14px; font-size: 14px; color: var(--ink); }
 .chip span { color: var(--text-soft); }
 .chip.stated { background: var(--success-background); border-color: transparent; }
+.chip.fromProfile { background: #E4EEFA; border-color: transparent; }
 .chip.inferred { background: var(--assumed-background); border-color: transparent; }
 .chip.missing { background: transparent; border-style: dashed; color: var(--muted); }
 .typing { display: inline-flex; gap: 4px; padding: 4px 0; }
@@ -61,7 +62,7 @@
 .sheetMath { margin: 0 0 10px; color: var(--text-soft); }
 .legend { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
-.dot.stated { background: #4B9B6E; } .dot.inferred { background: #8E6BC0; } .dot.missing { background: transparent; border: 1.5px dashed var(--muted); }
+.dot.stated { background: #4B9B6E; } .dot.fromProfile { background: #3F7FC4; } .dot.inferred { background: #8E6BC0; } .dot.missing { background: transparent; border: 1.5px dashed var(--muted); }
 .composer { display: flex; gap: 10px; align-items: flex-end; padding: 12px 20px 18px; max-width: 780px; margin: 0 auto; width: 100%; }
 .composer textarea { flex: 1; resize: none; border-radius: 22px; padding: 12px 18px; max-height: 160px; field-sizing: content; }
 .composer button { background: var(--primary-control); color: var(--primary-ink); border-color: transparent; padding: 11px 20px; }

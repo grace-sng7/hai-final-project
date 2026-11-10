@@ -9,6 +9,8 @@ import { type ExtractionResponse, type ExtractionService, validateExtraction } f
 import { extractionService, calculationService } from '@/lib/services';
 import { emptyContent, type CalculationResponse, type CalculationService } from '@/lib/calculation-contract';
 import { calculationRequest, correctionLines, currentResult, guideSectionOpen, initialApplicationState, workspaceReducer } from '@/lib/workspace-model';
+import { applyProfile, clearProfile, hasProfile, loadProfile, profileContext, saveProfile, stripProfile, type Profile } from '@/lib/profile';
+import { ProfilePanel } from './profile-panel';
 
 const assistantMessages = {
   guide: "Let's start with what we know. You can check and change every assumption.",
@@ -30,6 +32,10 @@ export default function Workspace({ service = extractionService, calculator = ca
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [retry, setRetry] = useState(0);
+  // Same profile as the chat view (this browser only). It fills values the question left out.
+  const [profile, setProfile] = useState<Profile>({});
+  const [profileOpen, setProfileOpen] = useState(false);
+  useEffect(() => { setProfile(loadProfile()); }, []);
   const version = useRef(0);
   const revision = useRef(0);
   const pendingText = !!(correction.trim() || goalDraft.trim() || Object.values(dirtyEditors).some(Boolean));
@@ -50,7 +56,7 @@ export default function Workspace({ service = extractionService, calculator = ca
   async function extract() {
     if (busy) return;
     const request = ++version.current; setBusy(true); setError('');
-    try { const extraction = validateExtraction(await service.extract({ ...context(), user_message: input })); if (request === version.current) { dispatch({ type: 'load', question: input, extraction }); setStatus('Ready to explore'); } }
+    try { const extraction = applyProfile(validateExtraction(await service.extract({ ...context(), user_message: input + profileContext(profile) })), profile); if (request === version.current) { dispatch({ type: 'load', question: input, extraction }); setStatus('Ready to explore'); } }
     catch (e) { if (request === version.current) setError((e as Error).message); }
     finally { if (request === version.current) setBusy(false); }
   }
@@ -62,7 +68,7 @@ export default function Workspace({ service = extractionService, calculator = ca
     if (!content) { setStatus('No corrections to apply.'); return; }
     const request = ++version.current; const editVersion = revision.current; setBusy(true); setError('');
     try {
-      const next = validateExtraction(await service.correct({ ...context(), previous_extraction: structuredClone(raw), user_correction: content }));
+      const next = applyProfile(validateExtraction(await service.correct({ ...context(), previous_extraction: structuredClone(stripProfile(raw)), user_correction: content })), profile);
       if (request !== version.current) return;
       if (editVersion !== revision.current) { setStatus('Your edits changed while saving. Response discarded; drafts retained.'); return; }
       setHistory(h => [...h, { correction: content, extraction: raw }]); dispatch({ type: 'load', question: original, extraction: next, preserveMode: true }); setCorrection(''); setGoalDraft(''); setDirtyEditors({}); setGoalEditing(false); setStatus('Updated just now');
@@ -78,7 +84,9 @@ export default function Workspace({ service = extractionService, calculator = ca
     else if (!app.openSteps[step]) dispatch({ type: 'toggle', step });
     requestAnimationFrame(() => document.getElementById(`step-${step}`)?.scrollIntoView({ block: 'start' }));
   };
-  return <><header className="site-header"><Link className="brand" href="/" onClick={event => { event.preventDefault(); reset(); }} aria-label="Pennyscope — new question"><span className="sun">☀</span>Pennyscope</Link><div className="header-right"><span className="demo">{demoMode ? 'Demo mode' : 'Pennyscope'}</span><button className="new-question" onClick={reset}>＋ New question</button></div></header>
+  return <><header className="site-header"><Link className="brand" href="/" onClick={event => { event.preventDefault(); reset(); }} aria-label="Pennyscope — new question"><span className="sun">☀</span>Pennyscope</Link><div className="header-right"><span className="demo">{demoMode ? 'Demo mode' : 'Pennyscope'}</span><button className="new-question" onClick={() => setProfileOpen(true)}>{hasProfile(profile) ? 'Profile' : 'Set up profile'}</button><button className="new-question" onClick={reset}>＋ New question</button></div></header>
+    {profileOpen && <ProfilePanel profile={profile} onClose={() => setProfileOpen(false)}
+      onSave={p => { saveProfile(p); setProfile(p); setProfileOpen(false); if (raw) setStatus('Profile saved. It applies from your next question.'); }} onClear={() => { clearProfile(); setProfile({}); }} />}
     <main className={raw || busy ? 'workspace-page' : 'landing-page'}><div aria-live="polite" className="sr-only">{busy ? 'Reviewing your description' : status}</div>
       {!raw && !busy && <section className="intro"><span className="eyebrow">A little clarity goes a long way</span><h1>What’s on your mind?</h1><p>A trip, a new laptop, a fresh start.<br />Let’s make the numbers a little less mysterious.</p><div className="input-card"><label htmlFor="description">Tell us what you’re working toward</label><textarea id="description" value={input} onChange={e => setInput(e.target.value)} placeholder="Describe your goal, the numbers you know, and anything you’re unsure about…" /><div className="input-footer"><span>{demoMode ? 'Demo mode · choose an example below.' : 'Start with the numbers you know.'}</span><button className="primary" disabled={!input.trim()} onClick={extract}>Continue <span>→</span></button></div></div>{demoMode && <DemoInputs onSelect={message => { setInput(message); setError(''); }} />}<div className="principles"><span>◉ See every assumption</span><span>✎ Make it yours</span><span>↔ Explore the trade-offs</span></div></section>}
       {(raw || busy) && <><div className="user-message"><div><span className="question-caption">Your question</span>{original || input}</div><span className="avatar">Y</span></div><section className="assistant-message" aria-label="Pennyscope response"><span className="assistant-avatar" aria-hidden="true">☀</span><div>{raw ? assistantMessages[app.mode] : assistantMessages.loading}</div></section></>}

@@ -24,7 +24,11 @@ export function parseSimpleAnswer(text: string, unit: string | null): number | n
 export function applyLocalAnswer(extraction: ExtractionResponse, variable: string, value: number, said: string): ExtractionResponse {
   return {
     ...extraction,
-    assumptions: extraction.assumptions.map(a => a.variable === variable ? { ...a, value, source: 'stated', source_detail: `You said “${said.trim()}”` } : a),
+    assumptions: extraction.assumptions.map(a => {
+      if (a.variable !== variable) return a;
+      const { from_profile: _flag, ...rest } = a; void _flag;   // what the user just said replaces a profile value
+      return { ...rest, value, source: 'stated', source_detail: `You said “${said.trim()}”` } as typeof a;
+    }),
     clarification_questions: extraction.clarification_questions.filter(q => q.target_variable !== variable),
   };
 }

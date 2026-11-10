@@ -7,7 +7,7 @@ import type { ExtractionResponse, ExtractionService } from '../lib/extraction';
 import { liveCalculationService, liveExtractionService } from '../lib/http-services';
 import { calculationService as mockCalculation, extractionService as mockExtraction } from '../lib/services';
 import { applyLocalAnswer, parseSimpleAnswer } from '../lib/local-answer';
-import { applyProfile, clearProfile, hasProfile, loadProfile, monthlyExpenses, profileContext, saveProfile, type Profile } from '../lib/profile';
+import { applyProfile, clearProfile, hasProfile, loadProfile, monthlyExpenses, profileContext, saveProfile, stripProfile, type Profile } from '../lib/profile';
 import { label, money } from '../lib/workspace-model';
 import { ProfilePanel } from './profile-panel';
 import { AnswerCard, QuickReplies, Status, Typing, Understood, WorkingSheet, show } from './chat-parts';
@@ -144,6 +144,11 @@ export default function ChatApp() {
   }
   const failed = () => bot('Something went wrong on my side. Your details are saved.', { replies: [RETRY] });
 
+  // Every correction goes through here: profile figures are blanked before the request reaches the model,
+  // then filled back in on this device. Anything the user says in the reply still overrides the profile.
+  const correct = async (before: ExtractionResponse, user_correction: string) =>
+    applyProfile(await extraction.correct({ ...context(), user_message: originalRef.current, previous_extraction: stripProfile(before), user_correction }), profileRef.current);
+
   async function proceed(value: ExtractionResponse) {
     const q = modeRef.current === 'quick' ? null : nextQuestion(value);
     if (q) ask([q.target], q.question, q.why); else await calculate(value);
@@ -163,8 +168,7 @@ export default function ChatApp() {
         pending.forEach(t => estimated.current.add(t)); estimateFor.current = null; current.current = null;
         const names = pending.map(t => label(t).toLowerCase());
         const attempt = async () => {
-          const next = await extraction.correct({ ...context(), user_message: originalRef.current, previous_extraction: before,
-            user_correction: `I don't know ${names.join(', ')}. Please use a typical rough estimate for each (a middle-of-the-road figure for this kind of goal), label it inferred, and say in source_detail that it is a rough estimate.` });
+          const next = await correct(before, `I don't know ${names.join(', ')}. Please use a typical rough estimate for each (a middle-of-the-road figure for this kind of goal), label it inferred, and say in source_detail that it is a rough estimate.`);
           const diff = changes(before, next);
           setExtraction(next);
           bot(diff.length ? `No problem. I used rough estimates: ${diff.join(' · ')}. Change any of them if you know better.` : 'I couldn’t come up with a reasonable estimate for that one.');
@@ -199,7 +203,7 @@ export default function ChatApp() {
         const target = q && q.targets.length === 1 ? before.assumptions.find(a => a.variable === q.targets[0]) : undefined;
         const local = target ? parseSimpleAnswer(message, target.unit) : null;
         const next = target && local !== null ? applyLocalAnswer(before, target.variable, local, message)
-          : await extraction.correct({ ...context(), user_message: originalRef.current, previous_extraction: before, user_correction: q ? `Answering "${q.question}": ${message}` : message });
+          : await correct(before, q ? `Answering "${q.question}": ${message}` : message);
         const diff = changes(before, next);
         setExtraction(next); current.current = null;
         if (!diff.length && !q) { bot('Thanks, I’ve noted that. Nothing I use in the numbers changed.'); return; }
@@ -226,6 +230,24 @@ export default function ChatApp() {
     }, 250);
   }, []);
 
+  // Saving or clearing the profile mid-chat updates the working sheet straight away, with no model call.
+  async function changeProfile(p: Profile) {
+    updateProfile(p);
+    const before = exRef.current;
+    if (!before || busy) return;
+    const next = applyProfile(before, p);
+    const key = (e: ExtractionResponse) => JSON.stringify(e.assumptions.map(a => [a.variable, a.value, a.source, a.from_profile === true]));
+    if (key(before) === key(next)) return;
+    setExtraction(next);
+    const diff = changes(before, next);
+    bot(diff.length ? `Updated from your profile. ${diff.join(' · ')}` : 'I’ve updated the working sheet to match your profile.');
+    // Leave a question that is still open alone; otherwise carry on with the new numbers.
+    const open = current.current?.targets.some(t => next.assumptions.find(a => a.variable === t)?.source !== 'stated');
+    if (open) return;
+    current.current = null;
+    setBusy(true); try { await proceed(next); } catch { failed(); } finally { setBusy(false); }
+  }
+
   const reset = () => {
     if (timer.current) clearTimeout(timer.current);
     calcSeq.current++; idRef.current = 0; estimateFor.current = null; estimated.current = new Set(); exRef.current = null; originalRef.current = ''; paramsRef.current = {}; asked.current = {}; skipped.current = new Set(); current.current = null; retry.current = null;
@@ -240,7 +262,7 @@ export default function ChatApp() {
     <header className={s.header}>
       <button type="button" className={s.brand} onClick={reset} aria-label="Start over"><span aria-hidden="true">☀</span> Pennyscope</button>
       <Status stage={stage} active={!empty} />
-      <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" onClick={() => setProfileOpen(true)}>{hasProfile(profile) ? 'Profile' : 'Set up profile'}</button><button type="button" onClick={reset}>New chat</button></div>
+      <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" disabled={busy} onClick={() => setProfileOpen(true)}>{hasProfile(profile) ? 'Profile' : 'Set up profile'}</button><button type="button" onClick={reset}>New chat</button></div>
     </header>
     <div className={s.body}>
       <main className={s.thread} aria-live="polite">
@@ -268,7 +290,7 @@ export default function ChatApp() {
       <div className={`${s.sheetWrap} ${sheetOpen ? s.sheetOpen : ''}`}><WorkingSheet extraction={ex} math={lastAnswer?.response ?? null} /></div>
     </div>
     {profileOpen && <ProfilePanel profile={profile} onClose={() => setProfileOpen(false)}
-      onSave={p => { saveProfile(p); updateProfile(p); setProfileOpen(false); }} onClear={() => { clearProfile(); updateProfile({}); }} />}
+      onSave={p => { saveProfile(p); setProfileOpen(false); void changeProfile(p); }} onClear={() => { clearProfile(); void changeProfile({}); }} />}
     <form className={s.composer} onSubmit={e => { e.preventDefault(); void send(text); }}>
       <textarea ref={input} rows={1} value={text} disabled={busy} placeholder={current.current ? 'Type your answer…' : ex ? 'Correct something or ask “what if…”' : 'Describe your goal and what you know…'}
         onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(text); } }} aria-label="Message" />

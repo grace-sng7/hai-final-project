@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { canonicalParameters, type CalculationResponse, type EditableField } from '../lib/calculation-contract';
 import type { Assumption, ExtractionResponse } from '../lib/extraction';
+import { fromProfile } from '../lib/profile';
 import { label, money } from '../lib/workspace-model';
 import s from '../app/chat/chat.module.css';
 
@@ -16,13 +17,15 @@ export function show(a: Pick<Assumption, 'value' | 'unit'>): string {
   return a.value;
 }
 
-const SOURCE_TEXT = { stated: 'You told me', inferred: 'I worked out', missing: 'Still unknown' } as const;
+const SOURCE_TEXT = { stated: 'You told me', fromProfile: 'From your profile', inferred: 'I worked out', missing: 'Still unknown' } as const;
+// Profile values are "stated" for the calculator, but shown separately: the user did not say them in this chat.
+const origin = (a: Assumption) => fromProfile(a) ? 'fromProfile' : a.source;
 
 // Read-only summary of what the model understood. Clicking a chip pre-fills the composer, so
 // corrections happen in conversation rather than in form fields.
 export function Understood({ extraction, onPick }: { extraction: ExtractionResponse; onPick: (text: string) => void }) {
   const rows = extraction.assumptions.filter(a => a.variable !== 'goal_description' && !(a.variable === 'monthly_surplus' && a.source === 'missing'));
-  const groups = (['stated', 'inferred', 'missing'] as const).map(source => ({ source, items: rows.filter(a => a.source === source) })).filter(g => g.items.length);
+  const groups = (['stated', 'fromProfile', 'inferred', 'missing'] as const).map(source => ({ source, items: rows.filter(a => origin(a) === source) })).filter(g => g.items.length);
   return <div>
     <p className={s.bubbleText}>{extraction.goal_summary || 'Here is what I understood.'}</p>
     {groups.map(g => <div key={g.source} className={s.chipGroup}>
@@ -80,8 +83,8 @@ export function WorkingSheet({ extraction, math }: { extraction: ExtractionRespo
     <h2>Working sheet</h2>
     {!extraction ? <p className={s.muted}>Everything I understand will be listed here, with where it came from.</p> : <ul>
       {extraction.assumptions.map(a => <li key={a.variable} title={a.source_detail}>
-        <span className={`${s.dot} ${s[a.source]}`} aria-label={a.source} /><span className={s.sheetLabel}>{label(a.variable)}</span><strong>{show(a)}</strong></li>)}</ul>}
-    <p className={s.legend}><span className={`${s.dot} ${s.stated}`} /> stated <span className={`${s.dot} ${s.inferred}`} /> inferred <span className={`${s.dot} ${s.missing}`} /> missing</p>
+        <span className={`${s.dot} ${s[origin(a)]}`} aria-label={fromProfile(a) ? 'from your profile' : a.source} /><span className={s.sheetLabel}>{label(a.variable)}</span><strong>{show(a)}</strong></li>)}</ul>}
+    <p className={s.legend}><span className={`${s.dot} ${s.stated}`} /> stated <span className={`${s.dot} ${s.fromProfile}`} /> profile <span className={`${s.dot} ${s.inferred}`} /> inferred <span className={`${s.dot} ${s.missing}`} /> missing</p>
     {math && (math.status === 'ready' || math.status === 'conditional') && math.explanations.length > 0 && <><h2>The math</h2>{math.explanations.map((e, i) => <p key={i} className={s.sheetMath}><strong>{e.label}</strong><br />{e.text}</p>)}</>}
   </aside>;
 }

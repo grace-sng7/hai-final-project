@@ -31,7 +31,7 @@ export function ProfilePanel({ profile, onSave, onClear, onClose }: { profile: P
         <label className={s.check}><input type="checkbox" checked={!!draft.shareContext} onChange={e => setDraft(d => ({ ...d, shareContext: e.target.checked }))} />
           <span>Let the assistant use my age and location to suggest typical costs</span></label>
       </fieldset>
-      <p className={s.privacy}>🔒 Saved only in this browser. Your money figures are filled in on your device and never sent to the AI model. Age and location are sent only if you tick the box above.</p>
+      <p className={s.privacy}>🔒 Saved only in this browser. Your money figures are filled in on your device and never sent to the AI model; only the calculator uses them. Age and location are sent to the model only if you tick the box above.</p>
       <div className={s.profileActions}>
         <button type="button" onClick={() => { onClear(); setDraft({}); }}>Clear profile</button>
         <span />
