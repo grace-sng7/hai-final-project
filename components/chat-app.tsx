@@ -7,7 +7,9 @@ import type { ExtractionResponse, ExtractionService } from '../lib/extraction';
 import { liveCalculationService, liveExtractionService } from '../lib/http-services';
 import { calculationService as mockCalculation, extractionService as mockExtraction } from '../lib/services';
 import { applyLocalAnswer, parseSimpleAnswer } from '../lib/local-answer';
-import { label } from '../lib/workspace-model';
+import { applyProfile, clearProfile, hasProfile, loadProfile, monthlyExpenses, profileContext, saveProfile, type Profile } from '../lib/profile';
+import { label, money } from '../lib/workspace-model';
+import { ProfilePanel } from './profile-panel';
 import { AnswerCard, QuickReplies, Status, Typing, Understood, WorkingSheet, show } from './chat-parts';
 import s from '../app/chat/chat.module.css';
 
@@ -61,6 +63,12 @@ export default function ChatApp() {
   const [ex, setEx] = useState<ExtractionResponse | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [profile, setProfile] = useState<Profile>({});
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<Profile>({});
+  // Read the saved profile after mount (browser storage isn't available during server rendering).
+  useEffect(() => { const p = loadProfile(); profileRef.current = p; setProfile(p); }, []);
+  const updateProfile = (p: Profile) => { profileRef.current = p; setProfile(p); };
   const [mode, setModeState] = useState<Mode>('detailed');
   const modeRef = useRef<Mode>('detailed');
   const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
@@ -217,7 +225,7 @@ export default function ChatApp() {
       if (!before) {
         originalRef.current = message;
         const attempt = async () => {
-          const result = await extraction.extract({ ...context(), user_message: message });
+          const result = applyProfile(await extraction.extract({ ...context(), user_message: message + profileContext(profileRef.current) }), profileRef.current);
           setExtraction(result); setStage(0); push({ role: 'bot', kind: 'understood', extraction: result });
           await proceed(result);
         };
@@ -276,17 +284,20 @@ export default function ChatApp() {
     <header className={s.header}>
       <button type="button" className={s.brand} onClick={reset} aria-label="Start over"><span aria-hidden="true">☀</span> Pennyscope</button>
       <Status stage={stage} active={!empty} />
-      <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" onClick={reset}>New chat</button></div>
+      <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" onClick={() => setProfileOpen(true)}>{hasProfile(profile) ? 'Profile' : 'Set up profile'}</button><button type="button" onClick={reset}>New chat</button></div>
     </header>
     <div className={s.body}>
       <main className={s.thread} aria-live="polite">
         {empty && <div className={s.welcome}><h1>What are you thinking about buying or doing?</h1>
           <p>Tell me in your own words. I’ll show you what I understood, ask only what I need, then walk you through the numbers.</p>
+          <div className={s.profileBanner}>{hasProfile(profile)
+            ? <><span>Using your profile: {[profile.income !== undefined && `${money(profile.income)}/mo income`, monthlyExpenses(profile) !== undefined && `${money(monthlyExpenses(profile)!)}/mo spending`, profile.savings !== undefined && `${money(profile.savings)} saved`].filter(Boolean).join(' · ')}</span><button type="button" onClick={() => setProfileOpen(true)}>Edit</button></>
+            : <><span>Tired of typing your income and rent every time? Save them once.</span><button type="button" onClick={() => setProfileOpen(true)}>Set up profile</button></>}</div>
           <div className={s.modes} role="radiogroup" aria-label="How would you like to do this?">
             {([['quick', 'Quick answer', 'No questions. I fill any gaps with typical numbers, clearly marked, and give you a ballpark right away.'], ['detailed', 'Talk it through', 'I ask one question at a time, explain why, and check with you before running the numbers.']] as const).map(([id, title, hint]) =>
               <button key={id} type="button" role="radio" aria-checked={mode === id} className={`${s.mode} ${mode === id ? s.modeOn : ''}`} onClick={() => setMode(id)}><strong>{title}</strong><span>{hint}</span></button>)}
           </div>
-          <div className={s.suggestions}>{SUGGESTIONS.map(t => <button key={t} type="button" onClick={() => pick(t)}>{t}</button>)}</div></div>}
+          <section className={s.exampleSection} aria-labelledby="suggestions-heading"><h2 id="suggestions-heading" className={s.suggestionsHeading}>What you can ask</h2><div className={s.suggestions}>{SUGGESTIONS.map(t => <button key={t} type="button" onClick={() => pick(t)}>{t}</button>)}</div></section></div>}
         {msgs.map(m => m.role === 'user'
           ? <div key={m.id} className={`${s.row} ${s.user}`}><div className={s.bubbleUser}>{m.text}</div></div>
           : <div key={m.id} className={s.row}><span className={s.avatar} aria-hidden="true">☀</span><div className={s.bubble}>
@@ -300,6 +311,8 @@ export default function ChatApp() {
       </main>
       <div className={`${s.sheetWrap} ${sheetOpen ? s.sheetOpen : ''}`}><WorkingSheet extraction={ex} math={lastAnswer?.response ?? null} /></div>
     </div>
+    {profileOpen && <ProfilePanel profile={profile} onClose={() => setProfileOpen(false)}
+      onSave={p => { saveProfile(p); updateProfile(p); setProfileOpen(false); }} onClear={() => { clearProfile(); updateProfile({}); }} />}
     <form className={s.composer} onSubmit={e => { e.preventDefault(); void send(text); }}>
       <textarea ref={input} rows={1} value={text} disabled={busy} placeholder={current.current ? 'Type your answer…' : ex ? 'Correct something or ask “what if…”' : 'Describe your goal and what you know…'}
         onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(text); } }} aria-label="Message" />
