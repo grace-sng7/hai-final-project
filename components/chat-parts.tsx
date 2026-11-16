@@ -1,7 +1,8 @@
 'use client';
 // Presentational pieces for the chat view. No service calls and no state beyond local UI state.
 import { useState } from 'react';
-import { canonicalParameters, type CalculationResponse, type EditableField, type Verification, type VerificationCheck } from '../lib/calculation-contract';
+import type { CalculationResponse, Verification, VerificationCheck } from '../lib/calculation-contract';
+import { AnswerVisuals, CostBreakdown, type CostItem } from './answer-visuals';
 import type { Assumption, ExtractionResponse } from '../lib/extraction';
 import { fromProfile } from '../lib/profile';
 import { label, money } from '../lib/workspace-model';
@@ -27,15 +28,38 @@ export function Understood({ extraction, onPick }: { extraction: ExtractionRespo
   const rows = extraction.assumptions.filter(a => a.variable !== 'goal_description' && !(a.variable === 'monthly_surplus' && a.source === 'missing'));
   const groups = (['stated', 'fromProfile', 'inferred', 'missing'] as const).map(source => ({ source, items: rows.filter(a => origin(a) === source) })).filter(g => g.items.length);
   return <div>
-    <p className={s.bubbleText}>{extraction.goal_summary || 'Here is what I understood.'}</p>
+    <p className={s.bubbleText}>{message(extraction) ?? (extraction.goal_summary || 'Here is what I understood.')}</p>
     {groups.map(g => <div key={g.source} className={s.chipGroup}>
       <span className={s.chipCaption}>{SOURCE_TEXT[g.source]}</span>
       <div className={s.chips}>{g.items.map(a => <button key={a.variable} type="button" className={`${s.chip} ${s[g.source]}`} title={a.source_detail}
         onClick={() => onPick(`Actually, ${label(a.variable).toLowerCase()} is `)}>
         <span>{label(a.variable)}</span>{a.source !== 'missing' && <strong>{show(a)}</strong>}</button>)}</div>
     </div>)}
+    <EstimateBreakdown extraction={extraction} />
     <p className={s.hint}>Tap anything to correct it, or just tell me in your own words.</p>
   </div>;
+}
+
+// What the model wrote to the user this turn, if anything.
+export const message = (e: ExtractionResponse): string | undefined =>
+  typeof e.assistant_message === 'string' && e.assistant_message.trim() ? e.assistant_message.trim() : undefined;
+
+// The model's line items for an estimated goal cost. Shown only while the cost is still an estimate.
+export function breakdown(e: ExtractionResponse): CostItem[] {
+  const goal = e.assumptions.find(a => a.variable === 'goal_amount');
+  if (!goal || goal.source !== 'inferred' || !Array.isArray(e.goal_breakdown)) return [];
+  return (e.goal_breakdown as unknown[]).flatMap(x => {
+    const o = x as Record<string, unknown>;
+    return o && typeof o.item === 'string' && typeof o.amount === 'number' && Number.isFinite(o.amount) && o.amount > 0
+      ? [{ item: o.item, amount: o.amount, ...(typeof o.note === 'string' && o.note ? { note: o.note } : {}) }] : [];
+  });
+}
+
+export function EstimateBreakdown({ extraction }: { extraction: ExtractionResponse }) {
+  const items = breakdown(extraction);
+  if (items.length < 2) return null;
+  const goal = extraction.assumptions.find(a => a.variable === 'goal_amount');
+  return <div className={s.estimate}><CostBreakdown items={items} total={typeof goal?.value === 'number' ? goal.value : null} /></div>;
 }
 
 export function Typing() {
@@ -46,25 +70,20 @@ export function QuickReplies({ replies, onPick, disabled }: { replies: string[];
   return <div className={s.replies}>{replies.map(r => <button key={r} type="button" disabled={disabled} onClick={() => onPick(r)}>{r}</button>)}</div>;
 }
 
-// The final answer: a sentence with inline numbers, what-if sliders, and the math behind it.
-export function AnswerCard({ response, interactive, params, onParam }: { response: CalculationResponse; interactive: boolean; params: Record<string, string>; onParam: (key: string, value: string) => void }) {
+// The final answer: the calculator's verdict, the LLM's explanation of it, charts and tables of the
+// same numbers, and follow-up what-ifs the user can tap.
+export function AnswerCard({ response, interactive, onAsk, disabled }: { response: CalculationResponse; interactive: boolean; onAsk: (text: string) => void; disabled: boolean }) {
   const ok = response.status === 'ready' || response.status === 'conditional';
-  const fields = canonicalParameters(response);
-  const value = (f: EditableField) => params[f.id] ?? String(f.value ?? '');
   if (!ok) return <p className={s.bubbleText}>{response.message}</p>;
-  const sliders = fields.filter(f => f.control.type === 'range');
+  const suggestions = response.narrative?.suggestions ?? [];
   return <div className={s.answer}>
-    <span className={s.badge}>{response.status === 'conditional' ? 'Conditional estimate' : 'Answer'}</span>
-    <p className={s.headline}>{response.answer.segments?.length ? response.answer.segments.map((seg, i) => {
-      if (seg.type === 'text') return <span key={i}>{seg.text}</span>;
-      const f = fields.find(x => x.id === seg.parameterId);
-      return f ? <span key={i} className={s.inline}>{seg.prefix}<input type="number" aria-label={f.label} disabled={!interactive} value={value(f)} min={f.control.min} max={f.control.max} step={f.control.step ?? 'any'} onChange={e => onParam(f.id, e.target.value)} /></span> : null;
-    }) : response.answer.headline}</p>
-    {response.answer.detail && <p className={s.muted}>{response.answer.detail}</p>}
+    <span className={s.badge}>{response.status === 'conditional' ? 'Estimate, based on some assumptions' : 'Answer'}</span>
+    <p className={s.headline}>{response.answer.headline}</p>
+    {response.narrative ? <p className={s.explain}>{response.narrative.text}</p> : response.answer.detail && <p className={s.muted}>{response.answer.detail}</p>}
     <VerifiedNote v={response.verification} />
-    {sliders.length > 0 && <div className={s.whatIf}><span className={s.chipCaption}>What if…</span>{sliders.map(f => <label key={f.id}><span>{f.label}</span><strong>{f.unit === '$' ? money(Number(value(f))) : value(f)}</strong>
-      <input type="range" disabled={!interactive} min={f.control.min} max={f.control.max} step={f.control.step ?? 1} value={value(f)} onChange={e => onParam(f.id, e.target.value)} /></label>)}</div>}
+    {response.visuals && <AnswerVisuals v={response.visuals} />}
     <MathPanel response={response} />
+    {interactive && suggestions.length > 0 && <div><span className={s.chipCaption}>Try a what-if</span><QuickReplies replies={suggestions} disabled={disabled} onPick={onAsk} /></div>}
   </div>;
 }
 

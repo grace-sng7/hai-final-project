@@ -1,7 +1,7 @@
 'use client';
 // Conversational front end. The framework is still: extract -> clarify -> calculate -> answer,
 // but each stage is a chat turn instead of a card. Services are the same ones the dashboard uses.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CalculationRequest, CalculationResponse, CalculationService } from '../lib/calculation-contract';
 import type { ExtractionResponse, ExtractionService } from '../lib/extraction';
 import { liveCalculationService, liveExtractionService } from '../lib/http-services';
@@ -10,7 +10,7 @@ import { applyLocalAnswer, parseSimpleAnswer } from '../lib/local-answer';
 import { applyProfile, clearProfile, hasProfile, loadProfile, monthlyExpenses, profileContext, saveProfile, stripProfile, type Profile } from '../lib/profile';
 import { label, money } from '../lib/workspace-model';
 import { ProfilePanel } from './profile-panel';
-import { AnswerCard, QuickReplies, Status, Typing, Understood, WorkingSheet, show } from './chat-parts';
+import { AnswerCard, EstimateBreakdown, QuickReplies, Status, Typing, Understood, WorkingSheet, breakdown, message as said, show } from './chat-parts';
 import s from '../app/chat/chat.module.css';
 
 const live = process.env.NEXT_PUBLIC_BACKEND_MODE === 'live';
@@ -19,7 +19,9 @@ const calculator: CalculationService = live ? liveCalculationService : mockCalcu
 
 const SKIP = 'Not sure, skip this';
 const RETRY = 'Try again';
-const ESTIMATE = 'Use a rough estimate';
+const ESTIMATE = 'Not sure, estimate it for me';
+// The calculator can't answer without these, so "not sure" means estimate rather than skip.
+const REQUIRED = new Set(['monthly_income', 'monthly_expenses', 'current_savings', 'goal_amount', 'goal_deadline']);
 const DONT_KNOW = /(don'?t know|dont know|not sure|no idea|idk|unsure|can'?t say)/i;
 // A bare "I don't know": no numbers and short. Mixed answers ("income 5000, cost not sure") go to the model instead.
 const isDontKnow = (text: string) => DONT_KNOW.test(text) && !/\d/.test(text) && text.length <= 60;
@@ -31,7 +33,7 @@ const SUGGESTIONS = [
 
 type Msg =
   | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'bot'; kind: 'text'; text: string; note?: string; replies?: string[] }
+  | { id: number; role: 'bot'; kind: 'text'; text: string; note?: string; replies?: string[]; extraction?: ExtractionResponse }
   | { id: number; role: 'bot'; kind: 'understood'; extraction: ExtractionResponse }
   | { id: number; role: 'bot'; kind: 'answer'; response: CalculationResponse }
   | { id: number; role: 'bot'; kind: 'typing' };
@@ -41,8 +43,8 @@ const context = () => {
   const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   return { reference_date: date, timezone: 'America/New_York' };
 };
-const request = (original: string, ex: ExtractionResponse, parameters: Record<string, string>, verify = false): CalculationRequest =>
-  ({ originalQuestion: original, extraction: ex, edits: {}, answers: {}, parameters, answerFactBindings: {}, verify });
+const request = (original: string, ex: ExtractionResponse, verify = false): CalculationRequest =>
+  ({ originalQuestion: original, extraction: ex, edits: {}, answers: {}, parameters: {}, answerFactBindings: {}, verify });
 
 // Which assumptions did a correction actually change? Used for the "Got it" acknowledgement.
 function changes(before: ExtractionResponse, after: ExtractionResponse): string[] {
@@ -57,7 +59,6 @@ export default function ChatApp() {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
   const [ex, setEx] = useState<ExtractionResponse | null>(null);
-  const [params, setParams] = useState<Record<string, string>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
   const [profileOpen, setProfileOpen] = useState(false);
@@ -68,23 +69,19 @@ export default function ChatApp() {
   const idRef = useRef(0);
   const exRef = useRef<ExtractionResponse | null>(null);
   const originalRef = useRef('');
-  const paramsRef = useRef<Record<string, string>>({});
   const asked = useRef<Record<string, number>>({});
   const skipped = useRef<Set<string>>(new Set());
   const current = useRef<{ targets: string[]; question: string; required: boolean } | null>(null);
   const estimateFor = useRef<string[] | null>(null);   // required items the user couldn't answer
   const estimated = useRef<Set<string>>(new Set());   // offer an estimate for each item only once
   const retry = useRef<(() => Promise<void>) | null>(null);
-  const calcSeq = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [msgs]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const push = (m: NewMsg) => setMsgs(list => [...list.filter(x => !('kind' in x && x.kind === 'typing')), { ...m, id: ++idRef.current } as Msg]);
-  const bot = (textValue: string, extra: { note?: string; replies?: string[] } = {}) => push({ role: 'bot', kind: 'text', text: textValue, ...extra });
+  const bot = (textValue: string, extra: { note?: string; replies?: string[]; extraction?: ExtractionResponse } = {}) => push({ role: 'bot', kind: 'text', text: textValue, ...extra });
   const typing = () => push({ role: 'bot', kind: 'typing' });
   const setExtraction = (value: ExtractionResponse) => { exRef.current = value; setEx(value); };
 
@@ -97,18 +94,18 @@ export default function ChatApp() {
     }
     return null;
   };
-  const ask = (targets: string[], question: string, why?: string, required = false) => {
+  const ask = (targets: string[], question: string, why?: string, required = targets.some(t => REQUIRED.has(t))) => {
     for (const t of targets) asked.current[t] = (asked.current[t] ?? 0) + 1;
     current.current = { targets, question, required }; estimateFor.current = null;
     setStage(1);
-    bot(question, { note: why, replies: [SKIP] });
+    bot(question, { note: why, replies: [required ? ESTIMATE : SKIP] });
   };
 
   async function calculate(value: ExtractionResponse) {
     setStage(2); typing();
     const run = async () => {
-      // A confirmed answer: the LLM works it, the calculator checks it (and wins). Slider moves below skip this.
-      const response = await calculator.calculate(request(originalRef.current, value, paramsRef.current, true));
+      // A confirmed answer: the LLM works it and explains it; the calculator checks it (and wins).
+      const response = await calculator.calculate(request(originalRef.current, value, true));
       if (response.status === 'ready' || response.status === 'conditional') {
         current.current = null; setStage(3); push({ role: 'bot', kind: 'answer', response });
         return;
@@ -121,7 +118,7 @@ export default function ChatApp() {
         const stuck = response.questions.filter(q => q.required).map(q => q.binding.kind === 'fact' ? value.assumptions[q.binding.index]?.variable ?? q.id : q.binding.key).filter(t => !estimated.current.has(t));
         if (stuck.length) {
           current.current = null; estimateFor.current = stuck; setStage(1);
-          bot(`I’m still missing ${stuck.map(t => label(t).toLowerCase()).join(', ')}. If you don’t know, I can use a rough typical estimate. You’ll see it marked as an estimate, and you can change it any time.`, { replies: [ESTIMATE] });
+          bot(`I still need ${stuck.map(t => label(t).toLowerCase()).join(' and ')} to work this out. If you don’t know, I can fill in a typical figure for someone in your situation and show you how I got it. It’ll be marked as an estimate, and you can change it any time.`, { replies: [ESTIMATE] });
           return;
         }
         current.current = null; setStage(1);
@@ -155,14 +152,14 @@ export default function ChatApp() {
     try {
       const before = exRef.current;
       const pending = estimateFor.current ?? (current.current?.required ? current.current.targets : null);
-      if (before && pending && (message === ESTIMATE || isDontKnow(message))) {
+      if (before && pending && (message === ESTIMATE || message === SKIP || isDontKnow(message))) {
         pending.forEach(t => estimated.current.add(t)); estimateFor.current = null; current.current = null;
         const names = pending.map(t => label(t).toLowerCase());
         const attempt = async () => {
-          const next = await correct(before, `I don't know ${names.join(', ')}. Please use a typical rough estimate for each (a middle-of-the-road figure for this kind of goal), label it inferred, and say in source_detail that it is a rough estimate.`);
-          const diff = changes(before, next);
+          const next = await correct(before, `I don't know ${names.join(', ')}. Please estimate each one: a typical middle-of-the-road figure for someone like me and this goal, labelled inferred, with source_detail starting "Rough estimate:" or "Estimate:" and saying what it is based on. If it is the goal cost, include goal_breakdown. In assistant_message, explain each estimate in concrete numbers and say I can change it.`);
           setExtraction(next);
-          bot(diff.length ? `No problem. I used rough estimates: ${diff.join(' · ')}. Change any of them if you know better.` : 'I couldn’t come up with a reasonable estimate for that one.');
+          const why = pending.map(t => next.assumptions.find(a => a.variable === t)).filter(a => a && a.source !== 'missing').map(a => `${label(a!.variable)}: ${show(a!)}. ${String(a!.source_detail).replace(/^(rough )?estimate:\s*/i, '')}`);
+          bot(said(next) ?? (why.length ? `Here’s what I’ll use for now:\n${why.join('\n')}\nChange any of them if you know better.` : 'I couldn’t come up with a reasonable estimate for that one.'), { extraction: breakdown(next).length ? next : undefined });
           await proceed(next);
         };
         retry.current = async () => { setBusy(true); typing(); try { await attempt(); } catch { failed(); } finally { setBusy(false); } };
@@ -198,28 +195,15 @@ export default function ChatApp() {
         const diff = changes(before, next);
         setExtraction(next); current.current = null;
         if (!diff.length && !q) { bot('Thanks, I’ve noted that. Nothing I use in the numbers changed.'); return; }
-        bot(diff.length ? `Got it. ${diff.join(' · ')}` : 'Thanks, I’ve noted that.');
+        const fromModel = next !== before && !(target && local !== null) ? said(next) : undefined;
+        const costChanged = breakdown(next).length > 0 && JSON.stringify(next.goal_breakdown) !== JSON.stringify(before.goal_breakdown);
+        bot(fromModel ?? (diff.length ? `Got it. ${diff.join(' · ')}` : 'Thanks, I’ve noted that.'), { extraction: costChanged ? next : undefined });
         await proceed(next);
       };
       retry.current = async () => { setBusy(true); typing(); try { await attempt(); } catch { failed(); } finally { setBusy(false); } };
       await attempt();
     } catch { failed(); } finally { setBusy(false); }
   }
-
-  // What-if: change a parameter, recalculate quietly, update the latest answer in place.
-  const onParam = useCallback((key: string, value: string) => {
-    paramsRef.current = { ...paramsRef.current, [key]: value }; setParams(paramsRef.current);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const value2 = exRef.current; if (!value2) return;
-      const seq = ++calcSeq.current;
-      try {
-        const response = await calculator.calculate(request(originalRef.current, value2, paramsRef.current));
-        if (seq !== calcSeq.current || (response.status !== 'ready' && response.status !== 'conditional')) return;
-        setMsgs(list => { const i = list.map(m => 'kind' in m && m.kind === 'answer').lastIndexOf(true); return i < 0 ? list : list.map((m, j) => j === i ? { ...m, response } as Msg : m); });
-      } catch { /* keep the previous answer */ }
-    }, 250);
-  }, []);
 
   // Saving or clearing the profile mid-chat updates the working sheet straight away, with no model call.
   async function changeProfile(p: Profile) {
@@ -240,9 +224,8 @@ export default function ChatApp() {
   }
 
   const reset = () => {
-    if (timer.current) clearTimeout(timer.current);
-    calcSeq.current++; idRef.current = 0; estimateFor.current = null; estimated.current = new Set(); exRef.current = null; originalRef.current = ''; paramsRef.current = {}; asked.current = {}; skipped.current = new Set(); current.current = null; retry.current = null;
-    setMsgs([]); setEx(null); setParams({}); setStage(0); setText(''); setBusy(false);
+    idRef.current = 0; estimateFor.current = null; estimated.current = new Set(); exRef.current = null; originalRef.current = ''; asked.current = {}; skipped.current = new Set(); current.current = null; retry.current = null;
+    setMsgs([]); setEx(null); setStage(0); setText(''); setBusy(false);
   };
   const pick = (value: string) => { setText(value); input.current?.focus(); };
   const lastAnswer = [...msgs].reverse().find(m => 'kind' in m && m.kind === 'answer') as Extract<Msg, { kind: 'answer' }> | undefined;
@@ -267,10 +250,10 @@ export default function ChatApp() {
           ? <div key={m.id} className={`${s.row} ${s.user}`}><div className={s.bubbleUser}>{m.text}</div></div>
           : <div key={m.id} className={s.row}><span className={s.avatar} aria-hidden="true">☀</span><div className={s.bubble}>
             {m.kind === 'typing' && <Typing />}
-            {m.kind === 'text' && <><p className={s.bubbleText}>{m.text}</p>{m.note && <p className={s.note}>{m.note}</p>}
+            {m.kind === 'text' && <><p className={s.bubbleText}>{m.text}</p>{m.note && <p className={s.note}>{m.note}</p>}{m.extraction && <EstimateBreakdown extraction={m.extraction} />}
               {m.replies && m.id === lastId && <QuickReplies replies={m.replies} disabled={busy} onPick={send} />}</>}
             {m.kind === 'understood' && <Understood extraction={m.extraction} onPick={pick} />}
-            {m.kind === 'answer' && <AnswerCard response={m.response} interactive={m === lastAnswer} params={params} onParam={onParam} />}
+            {m.kind === 'answer' && <AnswerCard response={m.response} interactive={m === lastAnswer && m.id === lastId} disabled={busy} onAsk={send} />}
           </div></div>)}
         <div ref={bottom} />
       </main>

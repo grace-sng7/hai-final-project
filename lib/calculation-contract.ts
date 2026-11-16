@@ -40,7 +40,15 @@ export interface AnswerContent { headline: string; detail?: string; segments?: A
 // LLM-led calculation checked by the deterministic calculator. The calculator's numbers are always the ones shown.
 export interface VerificationCheck { key: string; label: string; llm: number | boolean | null; calculator: number | boolean; match: boolean }
 export interface Verification { status: 'match' | 'mismatch' | 'unavailable'; checked: VerificationCheck[]; reasoning: string }
-export type CalculationResponse = ResponseContent & { verification?: Verification } & (
+// Chart/table numbers for the answer. Every figure is computed by the calculator; the UI only draws them.
+export interface BudgetSplit { income: number; expenses: { label: string; amount: number }[]; goal: number; left_over: number }
+export interface PlanOption { label: string; current: boolean; feasible: boolean; goal: number; months?: number; monthly?: number; from_savings?: number; savings_left?: number; short?: number; left_each_month?: number }
+export type Visuals =
+  | { kind: 'one_time'; funding: { goal: number; from_income: number; from_savings: number; short: number }; budget: BudgetSplit; timeline: { month: number; set_aside: number }[]; options: PlanOption[] }
+  | { kind: 'recurring'; budget_now: BudgetSplit; budget_after: BudgetSplit; options: PlanOption[] };
+// The LLM's plain-language explanation of the calculator's result, plus follow-ups the user might ask.
+export interface Narrative { text: string; suggestions: string[] }
+export type CalculationResponse = ResponseContent & { verification?: Verification; visuals?: Visuals; narrative?: Narrative } & (
   | { status: 'ready' | 'conditional'; answer: AnswerContent; message?: string }
   | { status: 'needs_input' | 'unsupported' | 'stale'; answer?: never; message: string }
 );

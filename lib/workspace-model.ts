@@ -1,7 +1,8 @@
 import type { AssumptionValue, ExtractionResponse } from './extraction';
 import type { CalculationRequest, CalculationResponse, SystemAssumption, ValueBinding } from './calculation-contract';
 export const label = (variable: string) => variable.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase());
-export const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+// Whole dollars stay whole; anything with cents shows both digits ($312.50, never $312.5).
+export const money = (n: number) => { const cents = Math.abs(n - Math.round(n)) >= 0.005; return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 }); };
 export type Mode = 'quick' | 'guide';
 export interface ApplicationState {
   originalQuestion: string; extraction: ExtractionResponse | null;

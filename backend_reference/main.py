@@ -1,10 +1,13 @@
 """Run:  uvicorn main:app --reload --port 8000      (from this folder)
 Interactive docs & manual testing:  http://localhost:8000/docs
 """
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import extraction_service
+import narration
 import savings_goal_model
 import verification
 from contract import CalculateRequest, CalculateResponse, CorrectRequest, ExtractionResponse, ExtractRequest
@@ -35,7 +38,14 @@ def calculate(req: CalculateRequest):
     # and choose between models here (e.g. by req.extraction_meta.get("question_type")).
     data = req.model_dump()
     result = savings_goal_model.calculate(data)
-    # Confirmed answers: the LLM's own working is checked against the calculator, which always wins.
+    # Confirmed answers: the LLM's own working is checked against the calculator, which always wins,
+    # and (in parallel) the LLM explains the calculator's result in plain language.
     if req.verify and result["status"] in ("ready", "conditional"):
-        result["verification"] = verification.verify(data, result)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            checked = pool.submit(verification.verify, data, result)
+            story = pool.submit(narration.narrate, data, result)
+            result["verification"] = checked.result()
+            narrative = story.result()
+        if narrative:
+            result["narrative"] = narrative
     return result
