@@ -22,14 +22,16 @@ function limited(request: Request): boolean {
 export async function POST(request: Request, { params }: { params: Promise<{ action: string }> }) {
   const { action } = await params;
   if (!ALLOWED.has(action)) return Response.json({ detail: 'Unknown action' }, { status: 404 });
-  if (action !== 'calculate' && limited(request)) return Response.json({ detail: 'Too many requests. Please wait a bit and try again.' }, { status: 429 });
+  const body = await request.text();
+  // Verified calculations call the LLM too, so they share the limit.
+  if ((action !== 'calculate' || body.includes('"verify":true')) && limited(request)) return Response.json({ detail: 'Too many requests. Please wait a bit and try again.' }, { status: 429 });
   const base = process.env.BACKEND_URL;
   if (!base) return Response.json({ detail: 'BACKEND_URL is not set. Copy env.example to .env.local and restart.' }, { status: 500 });
   try {
     const upstream = await fetch(`${base.replace(/\/$/, '')}/${action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(process.env.BACKEND_API_KEY ? { 'x-api-key': process.env.BACKEND_API_KEY } : {}) },
-      body: await request.text(),
+      body,
       signal: AbortSignal.timeout(55_000),
       cache: 'no-store',
     });

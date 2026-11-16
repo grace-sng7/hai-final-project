@@ -57,6 +57,13 @@ Request = the `/extract` request plus:
 
 ## 3. `POST /calculate`  (Calculation teammate)
 
+> **Verified answers (`verify`).** The request may include `"verify": true`. The chat sends it once, for the confirmed answer
+> (never for slider moves). The backend then has the LLM work the numbers itself (`verification.py`), recomputes them with
+> `savings_goal_model.py`, and adds `"verification": {"status": "match" | "mismatch" | "unavailable", "checked": [{"key", "label",
+> "llm", "calculator", "match"}], "reasoning"}` to the response. **The calculator's numbers always win**: the answer, metrics and
+> explanations are the calculator's, unchanged, and the UI flags any figure the LLM got differently. If the LLM is unavailable
+> the answer is returned as usual with `status: "unavailable"`.
+
 Called on every edit, including each slider movement → **must be stateless and fast (< 1 s). No LLM calls here.**
 
 Request

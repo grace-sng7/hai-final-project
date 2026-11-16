@@ -1,7 +1,7 @@
 'use client';
 // Presentational pieces for the chat view. No service calls and no state beyond local UI state.
 import { useState } from 'react';
-import { canonicalParameters, type CalculationResponse, type EditableField } from '../lib/calculation-contract';
+import { canonicalParameters, type CalculationResponse, type EditableField, type Verification, type VerificationCheck } from '../lib/calculation-contract';
 import type { Assumption, ExtractionResponse } from '../lib/extraction';
 import { label, money } from '../lib/workspace-model';
 import s from '../app/chat/chat.module.css';
@@ -58,18 +58,37 @@ export function AnswerCard({ response, interactive, params, onParam }: { respons
       return f ? <span key={i} className={s.inline}>{seg.prefix}<input type="number" aria-label={f.label} disabled={!interactive} value={value(f)} min={f.control.min} max={f.control.max} step={f.control.step ?? 'any'} onChange={e => onParam(f.id, e.target.value)} /></span> : null;
     }) : response.answer.headline}</p>
     {response.answer.detail && <p className={s.muted}>{response.answer.detail}</p>}
+    <VerifiedNote v={response.verification} />
     {sliders.length > 0 && <div className={s.whatIf}><span className={s.chipCaption}>What if…</span>{sliders.map(f => <label key={f.id}><span>{f.label}</span><strong>{f.unit === '$' ? money(Number(value(f))) : value(f)}</strong>
       <input type="range" disabled={!interactive} min={f.control.min} max={f.control.max} step={f.control.step ?? 1} value={value(f)} onChange={e => onParam(f.id, e.target.value)} /></label>)}</div>}
     <MathPanel response={response} />
   </div>;
 }
 
+const fmt = (v: VerificationCheck['llm']) => typeof v === 'boolean' ? (v ? 'Yes' : 'No') : typeof v === 'number' ? money(v) : '—';
+
+// One line on the card: did the AI's own working agree with the calculator?
+function VerifiedNote({ v }: { v?: Verification }) {
+  if (!v || v.status === 'unavailable') return null;
+  if (v.status === 'match') return <p className={`${s.verify} ${s.verifyOk}`}>✓ Double-checked: the AI’s working and the calculator agree.</p>;
+  const off = v.checked.filter(c => !c.match);
+  return <p className={`${s.verify} ${s.verifyWarn}`}>⚠ The AI’s working differed on {off.map(c => c.label.toLowerCase()).join(', ')}. You’re seeing the calculator’s exact numbers.</p>;
+}
+
+function VerificationDetail({ v }: { v: Verification }) {
+  return <div className={s.verifyDetail}><strong>AI working vs calculator</strong>
+    <table><thead><tr><th scope="col">Figure</th><th scope="col">AI</th><th scope="col">Calculator (used)</th></tr></thead>
+      <tbody>{v.checked.map(c => <tr key={c.key} className={c.match ? '' : s.verifyRowOff}><td>{c.label}</td><td>{fmt(c.llm)}</td><td>{fmt(c.calculator)}{c.match ? '' : ' ⚠'}</td></tr>)}</tbody></table>
+    {v.reasoning && <p className={s.muted}>AI’s working: {v.reasoning}</p>}</div>;
+}
+
 function MathPanel({ response }: { response: CalculationResponse }) {
   const [open, setOpen] = useState(false);
-  const has = response.explanations.length || response.assumptions.length || response.limitations.length;
+  const checked = response.verification && response.verification.status !== 'unavailable' ? response.verification : null;
+  const has = response.explanations.length || response.assumptions.length || response.limitations.length || checked;
   if (!has) return null;
   return <div className={s.math}><button type="button" className={s.link} aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Hide the math' : 'Show the math'}</button>
-    {open && <div>{response.explanations.map((e, i) => <p key={i}><strong>{e.label}</strong><br />{e.text}</p>)}
+    {open && <div>{checked && <VerificationDetail v={checked} />}{response.explanations.map((e, i) => <p key={i}><strong>{e.label}</strong><br />{e.text}</p>)}
       {response.assumptions.map(a => <p key={a.id} className={s.muted}>Assumption: {a.text}</p>)}
       {response.limitations.map((l, i) => <p key={i} className={s.muted}>Limit: {l}</p>)}</div>}</div>;
 }
