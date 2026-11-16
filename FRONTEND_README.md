@@ -42,7 +42,15 @@ python3 -m venv "$HOME/.venvs/pennyscope"
 
 For the current temporary checkout, an environment is already installed at `/private/tmp/syw-team-python-venv`. The checkout and environment under `/private/tmp` are temporary; use a durable local clone for ongoing work. They are not required paths for teammates.
 
-Create `backend_reference/.env.local` with a text editor, storing `OPENROUTER_API_KEY` there. It is ignored by Git. Never put the key in chat, source code, example files, or a `NEXT_PUBLIC_` variable. No credential value is supplied in this repository.
+The backend calls Claude on Amazon Bedrock. Create `backend_reference/.env.local` with a text editor containing:
+
+```sh
+AWS_BEARER_TOKEN_BEDROCK=<your Bedrock API key>   # Bedrock console > API keys
+AWS_REGION=us-east-1                             # the region the key and model access are in
+# BEDROCK_MODEL_ID=anthropic.claude-sonnet-5-5   # optional; this is the default
+```
+
+It is ignored by Git. Never put the key in chat, source code, example files, or a `NEXT_PUBLIC_` variable. No credential value is supplied in this repository. On Vercel, add the same variables in the project's environment settings.
 
 Start Python (terminal 1):
 

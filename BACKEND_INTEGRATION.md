@@ -131,7 +131,7 @@ For maintained test commands, including the separate Python environment, see FRO
 
 These are implementation/verification gaps, not changes to the agreed contract:
 
-- **Credentials:** OPENROUTER_API_KEY was absent; real extraction, correction and browser-to-provider behavior remain unverified. FastAPI needs environment configuration at startup, for example Uvicorn's `--env-file` option. A health response does not verify provider access.
+- **Credentials:** the backend uses Claude on Amazon Bedrock (`AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`, optional `BEDROCK_MODEL_ID`); see `_call_llm` in `extraction_service.py`. FastAPI needs environment configuration at startup, for example Uvicorn's `--env-file` option. A health response does not verify provider access.
 - **Prompt semantics:** the prompt is an exact notebook copy, not a revised prompt enforcing all contract recommendations. Confirm numeric-month deadlines, stable core names, total expenses, source/null consistency and optional question_type with Grace. The notebook permits dates and inferred surplus.
 - **Validation:** the Python models do not enforce unique variables, source/null equivalence or all status-dependent requirements. Structural validation does not guarantee semantically valid model output.
 - **Timeouts:** the browser allows 90 seconds, but the proxy upstream times out after 55 seconds and can return 502 first.

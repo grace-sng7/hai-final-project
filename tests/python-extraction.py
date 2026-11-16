@@ -101,7 +101,7 @@ class ExtractionIntegration(unittest.TestCase):
             with self.assertRaises(Exception) as caught:
                 extraction_service._get_client()
         self.assertEqual(caught.exception.status_code, 500)
-        self.assertEqual(caught.exception.detail, 'OPENROUTER_API_KEY is not set on the server')
+        self.assertEqual(caught.exception.detail, 'AWS_BEARER_TOKEN_BEDROCK is not set on the server')
 
 
 if __name__ == '__main__':

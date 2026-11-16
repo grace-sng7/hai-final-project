@@ -1,7 +1,9 @@
 """Grace: move your notebook logic here. Only the three marked places need your input.
 
 Key differences from the notebook:
-  1. The API key comes from the environment (never write it in code):  export OPENROUTER_API_KEY=...
+  1. Credentials come from the environment (never write them in code). The model runs on Amazon
+     Bedrock: set AWS_BEARER_TOKEN_BEDROCK (a Bedrock API key) and AWS_REGION, and optionally
+     BEDROCK_MODEL_ID. Standard AWS access keys (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) also work.
   2. The user's "today" (reference_date) is given to the model, so "next May" / "by February" can
      become a correct number of months.
   3. Failures raise HTTPException (the frontend shows a retry message) instead of crashing.
@@ -9,10 +11,12 @@ Key differences from the notebook:
 from __future__ import annotations
 import json
 import os
+import anthropic
+from anthropic import AnthropicBedrock
 from fastapi import HTTPException
-from openai import OpenAI
 
-MODEL = "google/gemini-2.5-flash"
+# Claude on Amazon Bedrock. Override with BEDROCK_MODEL_ID to use another model you have access to.
+MODEL = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-5-5")
 
 # Refined few-shot prompt. Keep in sync with SYSTEM_PROMPT in the repo-root extraction.py
 # (tests/python-extraction.py checks they are identical).
@@ -112,37 +116,64 @@ Output:
 # Corrections only need the rules and schema, not the long few-shot examples. Cheaper on every call.
 CORRECT_SYSTEM_PROMPT = SYSTEM_PROMPT.split("# Example 1")[0].rstrip() + "\n"
 
-_client: OpenAI | None = None
+_client: AnthropicBedrock | None = None
 
 
-def _get_client() -> OpenAI:
+def _get_client() -> AnthropicBedrock:
     global _client
     if _client is None:
-        key = os.environ.get("OPENROUTER_API_KEY")
-        if not key:
-            raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY is not set on the server")
-        _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
+        if not (os.environ.get("AWS_BEARER_TOKEN_BEDROCK") or os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_PROFILE")):
+            raise HTTPException(status_code=500, detail="AWS_BEARER_TOKEN_BEDROCK is not set on the server")
+        if not (os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")):
+            raise HTTPException(status_code=500, detail="AWS_REGION is not set on the server")
+        # Bedrock's runtime API, where Sonnet 5.5 is served. Reads AWS_BEARER_TOKEN_BEDROCK, or else the
+        # standard AWS credentials (access keys, session token, profile), plus AWS_REGION, from the environment.
+        _client = AnthropicBedrock(timeout=50.0)
     return _client
 
 
+def _json_from(text: str) -> dict:
+    """The prompts ask for JSON only; tolerate a code fence or a stray sentence around it."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start < 0 or end < start:
+        raise json.JSONDecodeError("No JSON object in the response", cleaned, 0)
+    return json.loads(cleaned[start:end + 1])
+
+
 def _call_llm(prompt: str, system: str | None = None) -> dict:
-    # >>> 2. If you switch to AWS Bedrock later, only this function changes. <<<
+    # The only function that knows which provider is used. Every LLM call in the backend goes through it.
     try:
-        response = _get_client().chat.completions.create(
+        response = _get_client().messages.create(
             model=MODEL,
-            messages=[{"role": "system", "content": system or SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
-            temperature=0.2,
-            response_format={"type": "json_object"},
+            max_tokens=16000,
+            # The long, fixed system prompts are cached, so repeat calls are cheaper and faster.
+            system=[{"type": "text", "text": system or SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": prompt}],
+            # Extraction and short explanations: low effort keeps each call quick.
+            output_config={"effort": "low"},
         )
-        cleaned = response.choices[0].message.content.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-        return json.loads(cleaned)
+        if response.stop_reason == "refusal":
+            raise HTTPException(status_code=502, detail="The model declined this request. Please rephrase and retry.")
+        text = "".join(b.text for b in response.content if b.type == "text")
+        return _json_from(text)
     except HTTPException:
         raise
     except json.JSONDecodeError:
         raise HTTPException(status_code=502, detail="The model returned invalid JSON. Please retry.")
-    except Exception as e:  # network / provider errors
+    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
+        raise HTTPException(status_code=502, detail="Bedrock refused the credentials. Check they are valid and the model is enabled; some AWS organizations block Bedrock API keys, so use AWS access keys there.")
+    except anthropic.NotFoundError:
+        raise HTTPException(status_code=502, detail=f"Bedrock model {MODEL} was not found in this region. Check BEDROCK_MODEL_ID and AWS_REGION.")
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=502, detail="The model is rate limited right now. Please wait a moment and retry.")
+    except anthropic.APIStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Model call failed: HTTP {e.status_code}")
+    except anthropic.APIConnectionError:
+        raise HTTPException(status_code=502, detail="Could not reach Bedrock. Please retry.")
+    except Exception as e:  # anything unexpected from the client
         raise HTTPException(status_code=502, detail=f"Model call failed: {type(e).__name__}")
 
 
