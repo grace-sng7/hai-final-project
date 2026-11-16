@@ -19,12 +19,10 @@ const calculator: CalculationService = live ? liveCalculationService : mockCalcu
 
 const SKIP = 'Not sure, skip this';
 const RETRY = 'Try again';
-const DEEPER = 'Sure, let’s go deeper';
 const ESTIMATE = 'Use a rough estimate';
 const DONT_KNOW = /(don'?t know|dont know|not sure|no idea|idk|unsure|can'?t say)/i;
 // A bare "I don't know": no numbers and short. Mixed answers ("income 5000, cost not sure") go to the model instead.
 const isDontKnow = (text: string) => DONT_KNOW.test(text) && !/\d/.test(text) && text.length <= 60;
-type Mode = 'quick' | 'detailed';
 const SUGGESTIONS = [
   'I make $2,400 a month after tax, rent is $1,000 and I spend about $600 on everything else. I have $900 saved. Can I afford a $2,500 laptop by next March?',
   'My friends want to do a spring break trip to Miami but I don’t know if I can afford it',
@@ -67,9 +65,6 @@ export default function ChatApp() {
   // Read the saved profile after mount (browser storage isn't available during server rendering).
   useEffect(() => { const p = loadProfile(); profileRef.current = p; setProfile(p); }, []);
   const updateProfile = (p: Profile) => { profileRef.current = p; setProfile(p); };
-  const [mode, setModeState] = useState<Mode>('detailed');
-  const modeRef = useRef<Mode>('detailed');
-  const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
   const idRef = useRef(0);
   const exRef = useRef<ExtractionResponse | null>(null);
   const originalRef = useRef('');
@@ -116,15 +111,11 @@ export default function ChatApp() {
       const response = await calculator.calculate(request(originalRef.current, value, paramsRef.current, true));
       if (response.status === 'ready' || response.status === 'conditional') {
         current.current = null; setStage(3); push({ role: 'bot', kind: 'answer', response });
-        if (modeRef.current === 'quick' && nextQuestion(value)) bot('That’s a quick estimate. I have a few optional questions that could make it more precise.', { replies: [DEEPER] });
         return;
       }
       if (response.status === 'needs_input') {
         const askable = response.questions.filter(q => q.required).map(q => ({ q, target: q.binding.kind === 'fact' ? value.assumptions[q.binding.index]?.variable ?? q.id : q.binding.key }))
           .filter(x => !skipped.current.has(x.target) && (asked.current[x.target] ?? 0) < 2);
-        if (askable.length && modeRef.current === 'quick') {
-          ask(askable.map(x => x.target), `To give you a number I just need ${askable.length > 1 ? 'a few things' : 'one thing'} (rough guesses are fine, or say “not sure” and I’ll estimate):\n${askable.map(x => `• ${x.q.label}`).join('\n')}`, undefined, true); return;
-        }
         if (askable.length) { ask([askable[0].target], askable[0].q.label, askable[0].q.help, true); return; }
         // Stuck on required values the user couldn't give: offer a clearly labelled rough estimate (once per item).
         const stuck = response.questions.filter(q => q.required).map(q => q.binding.kind === 'fact' ? value.assumptions[q.binding.index]?.variable ?? q.id : q.binding.key).filter(t => !estimated.current.has(t));
@@ -146,7 +137,7 @@ export default function ChatApp() {
   const failed = () => bot('Something went wrong on my side. Your details are saved.', { replies: [RETRY] });
 
   async function proceed(value: ExtractionResponse) {
-    const q = modeRef.current === 'quick' ? null : nextQuestion(value);
+    const q = nextQuestion(value);
     if (q) ask([q.target], q.question, q.why); else await calculate(value);
   }
 
@@ -154,7 +145,6 @@ export default function ChatApp() {
     const message = raw.trim();
     if (!message || busy) return;
     setText(''); push({ role: 'user', text: message });
-    if (message === DEEPER && exRef.current) { setMode('detailed'); setBusy(true); try { await proceed(exRef.current); } finally { setBusy(false); } return; }
     if (message === RETRY && retry.current) { setBusy(true); typing(); try { await retry.current(); } finally { setBusy(false); } return; }
     setBusy(true); typing();
     try {
@@ -250,10 +240,6 @@ export default function ChatApp() {
           <div className={s.profileBanner}>{hasProfile(profile)
             ? <><span>Using your profile: {[profile.income !== undefined && `${money(profile.income)}/mo income`, monthlyExpenses(profile) !== undefined && `${money(monthlyExpenses(profile)!)}/mo spending`, profile.savings !== undefined && `${money(profile.savings)} saved`].filter(Boolean).join(' · ')}</span><button type="button" onClick={() => setProfileOpen(true)}>Edit</button></>
             : <><span>Tired of typing your income and rent every time? Save them once.</span><button type="button" onClick={() => setProfileOpen(true)}>Set up profile</button></>}</div>
-          <div className={s.modes} role="radiogroup" aria-label="How would you like to do this?">
-            {([['quick', 'Quick answer', 'A fast estimate. I only ask what the math needs.'], ['detailed', 'Talk it through', 'I’ll ask a few questions, step by step, for a more precise answer.']] as const).map(([id, title, hint]) =>
-              <button key={id} type="button" role="radio" aria-checked={mode === id} className={`${s.mode} ${mode === id ? s.modeOn : ''}`} onClick={() => setMode(id)}><strong>{title}</strong><span>{hint}</span></button>)}
-          </div>
           <section className={s.exampleSection} aria-labelledby="suggestions-heading"><h2 id="suggestions-heading" className={s.suggestionsHeading}>What you can ask</h2><div className={s.suggestions}>{SUGGESTIONS.map(t => <button key={t} type="button" onClick={() => pick(t)}>{t}</button>)}</div></section></div>}
         {msgs.map(m => m.role === 'user'
           ? <div key={m.id} className={`${s.row} ${s.user}`}><div className={s.bubbleUser}>{m.text}</div></div>
