@@ -10,7 +10,7 @@ export function extractionInformation(raw: ExtractionResponse): CalculationRespo
     id: `fact-${index}`, label: label(a.variable), value: a.value, unit: a.unit ?? '',
     binding: { kind: 'fact', index },
     control: { type: editingControl(a.value, a.unit) },
-    source: a.source, sourceDetail: a.source_detail, confirmable: true,
+    source: a.source, sourceDetail: a.source_detail, confirmable: true, ...(a.from_profile === true ? { fromProfile: true } : {}),
   }));
 }
 export function presentResponse(raw: ExtractionResponse, response: CalculationResponse, changed = false): CalculationResponse {

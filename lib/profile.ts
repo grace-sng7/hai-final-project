@@ -2,7 +2,9 @@ import type { Assumption, ExtractionResponse } from './extraction';
 
 // Basic facts the user sets once so the chat doesn't ask every time.
 // Privacy: stored only in this browser (localStorage). Financial numbers are applied on the client and
-// never sent to the model; age/state/country are sent only if the user turns on "shareContext".
+// never sent to the model: every filled row is marked `from_profile`, and stripProfile() blanks those rows
+// before a correction request. They do go to the calculator (plain arithmetic, no model).
+// age/state/country are sent to the model only if the user turns on "shareContext".
 export interface Profile {
   income?: number;          // monthly, after tax
   rent?: number;            // monthly
@@ -37,12 +39,32 @@ export function profileContext(p: Profile): string {
   return parts.length ? `\n\n(Background from the user's profile: the user ${parts.join(' and ')}.)` : '';
 }
 
+export const fromProfile = (a: Assumption) => a.from_profile === true;
+const RENT_NAMES = ['current_rent', 'rent', 'monthly_rent'];
+
+// Blank every profile-filled row again. Use this on anything that is about to be sent to the model.
+export function stripProfile(extraction: ExtractionResponse): ExtractionResponse {
+  return { ...extraction, assumptions: extraction.assumptions.map(a => {
+    if (!fromProfile(a)) return a;
+    const { from_profile: _flag, ...rest } = a; void _flag;
+    return { ...rest, value: null, source: 'missing', source_detail: 'Not mentioned in the conversation' } as Assumption;
+  }) };
+}
+
 // Fill values the user didn't mention from the profile. Anything said in the conversation wins.
-export function applyProfile(extraction: ExtractionResponse, p: Profile): ExtractionResponse {
-  const expenses = monthlyExpenses(p);
+// Safe to call again on an already-filled extraction (after a profile edit or a correction).
+export function applyProfile(input: ExtractionResponse, p: Profile): ExtractionResponse {
+  const extraction = stripProfile(input);
+  // A rent the user stated in this conversation replaces the profile's rent inside the expenses total,
+  // so the total never disagrees with the rent shown next to it. (The model names it rent / current_rent.)
+  const said = RENT_NAMES.map(name => extraction.assumptions.find(a => a.variable === name)).find(a => a && a.source !== 'missing' && num(a.value) && (a.unit ?? '$/month') === '$/month');
+  const chatRent = said && monthlyExpenses(p) !== undefined ? said.value as number : undefined;
+  const rent = chatRent ?? p.rent;
+  const expenses = chatRent !== undefined ? chatRent + (p.otherExpenses ?? 0) : monthlyExpenses(p);
+  const rentNote = num(rent) ? ` (rent $${rent}${chatRent !== undefined ? ' from your message' : ''}${num(p.otherExpenses) ? ` + other $${p.otherExpenses}` : ''})` : '';
   const fills: Record<string, { value: number; unit: string; detail: string } | undefined> = {
     monthly_income: num(p.income) ? { value: p.income, unit: '$/month', detail: 'From your profile' } : undefined,
-    monthly_expenses: expenses !== undefined ? { value: expenses, unit: '$/month', detail: `From your profile${num(p.rent) ? ` (rent $${p.rent}${num(p.otherExpenses) ? ` + other $${p.otherExpenses}` : ''})` : ''}` } : undefined,
+    monthly_expenses: expenses !== undefined ? { value: expenses, unit: '$/month', detail: `From your profile${rentNote}` } : undefined,
     current_savings: num(p.savings) ? { value: p.savings, unit: '$', detail: 'From your profile' } : undefined,
   };
   const filled = new Set<string>();
@@ -50,10 +72,10 @@ export function applyProfile(extraction: ExtractionResponse, p: Profile): Extrac
     const f = fills[a.variable];
     if (!f || a.source !== 'missing') return a;
     filled.add(a.variable);
-    return { ...a, value: f.value, unit: a.unit ?? f.unit, source: 'stated', source_detail: f.detail };
+    return { ...a, value: f.value, unit: a.unit ?? f.unit, source: 'stated', source_detail: f.detail, from_profile: true };
   });
   for (const [variable, f] of Object.entries(fills)) {
-    if (f && !extraction.assumptions.some(a => a.variable === variable)) { filled.add(variable); assumptions.push({ variable, value: f.value, unit: f.unit, source: 'stated', source_detail: f.detail }); }
+    if (f && !extraction.assumptions.some(a => a.variable === variable)) { filled.add(variable); assumptions.push({ variable, value: f.value, unit: f.unit, source: 'stated', source_detail: f.detail, from_profile: true }); }
   }
   // A surplus the model derived from now-known values is stale; let the calculator do the arithmetic.
   if (filled.has('monthly_income') || filled.has('monthly_expenses')) {

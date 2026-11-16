@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { applyProfile, profileContext, monthlyExpenses, hasProfile } from '../lib/profile.ts';
+import { applyProfile, stripProfile, fromProfile, profileContext, monthlyExpenses, hasProfile } from '../lib/profile.ts';
+import { applyLocalAnswer } from '../lib/local-answer.ts';
 
 const miss = (variable, unit) => ({ variable, value: null, unit, source: 'missing', source_detail: 'Not mentioned' });
 const base = {
@@ -31,4 +32,51 @@ assert.match(ctx, /CA, USA/); assert.match(ctx, /20 years/); assert.doesNotMatch
 assert.equal(monthlyExpenses({}), undefined);
 assert.equal(hasProfile({ state: 'CA' }), false);
 assert.equal(hasProfile({ rent: 0 }), true);
-console.log('PASS: profile fill, precedence, surplus reset and privacy');
+
+// Provenance: profile rows are flagged so the UI can label them and so they can be withheld from the model.
+assert.equal(fromProfile(get('monthly_income')), true);
+assert.equal(fromProfile(get('goal_amount')), false, 'what the user said is not flagged');
+
+// Privacy: nothing from the profile survives stripProfile (this is what a correction request carries).
+const full = applyProfile({ ...base, assumptions: [...base.assumptions] }, { income: 2000, rent: 900, otherExpenses: 500, savings: 4321 });
+const sent = stripProfile(full);
+assert.doesNotMatch(JSON.stringify(sent), /2000|1400|4321|900.*rent|from_profile|profile/i, 'no profile figures or markers in the outgoing extraction');
+for (const v of ['monthly_income', 'monthly_expenses', 'current_savings']) assert.deepEqual([sent.assumptions.find(a => a.variable === v).value, sent.assumptions.find(a => a.variable === v).source], [null, 'missing']);
+assert.equal(sent.assumptions.find(a => a.variable === 'goal_amount').value, 900, 'what the user said is still sent');
+assert.equal(full.assumptions.find(a => a.variable === 'monthly_income').value, 2000, 'stripProfile does not mutate');
+
+// Round trip of a correction: strip -> model changes income -> re-apply. The chat wins; the rest is refilled.
+const corrected = { ...sent, assumptions: sent.assumptions.map(a => a.variable === 'monthly_income' ? { ...a, value: 2600, source: 'stated', source_detail: 'User said 2600' } : a) };
+const back = applyProfile(corrected, { income: 2000, rent: 900, otherExpenses: 500, savings: 4321 });
+const at = v => back.assumptions.find(a => a.variable === v);
+assert.deepEqual([at('monthly_income').value, fromProfile(at('monthly_income'))], [2600, false]);
+assert.deepEqual([at('monthly_expenses').value, fromProfile(at('monthly_expenses'))], [1400, true]);
+assert.equal(at('current_savings').value, 4321);
+
+// Editing the profile mid-chat: re-applying replaces old profile values, and clearing removes them.
+const edited = applyProfile(full, { income: 2500 });
+assert.equal(edited.assumptions.find(a => a.variable === 'monthly_income').value, 2500);
+assert.equal(edited.assumptions.find(a => a.variable === 'current_savings').source, 'missing', 'removed profile field is blanked');
+assert.equal(applyProfile(full, {}).assumptions.some(fromProfile), false);
+assert.deepEqual(applyProfile(full, { income: 2000, rent: 900, otherExpenses: 500, savings: 4321 }), full, 're-applying the same profile changes nothing');
+
+// A plain numeric answer in the chat replaces a profile value and drops the flag.
+assert.equal(fromProfile(applyLocalAnswer(full, 'monthly_income', 3000, '3000').assumptions.find(a => a.variable === 'monthly_income')), false);
+
+// A rent stated in the chat replaces the profile's rent inside the expenses total (profile 700 + 1000, chat rent 1000).
+const move = { ...base, assumptions: [miss('monthly_income', '$/month'), { variable: 'current_rent', value: 1000, unit: '$/month', source: 'stated', source_detail: 'User said' },
+  { variable: 'new_rent', value: 1400, unit: '$/month', source: 'stated', source_detail: 'User said' }, miss('monthly_expenses', '$/month')] };
+const moved = applyProfile(move, { income: 5000, rent: 700, otherExpenses: 1000 });
+const total = moved.assumptions.find(a => a.variable === 'monthly_expenses');
+assert.equal(total.value, 2000, 'chat rent 1000 + profile other 1000, not profile rent 700');
+assert.match(total.source_detail, /rent \$1000 from your message \+ other \$1000/);
+assert.equal(fromProfile(total), true);
+assert.equal(moved.assumptions.find(a => a.variable === 'current_rent').value, 1000, 'the stated rent itself is untouched');
+assert.deepEqual(applyProfile(moved, { income: 5000, rent: 700, otherExpenses: 1000 }), moved, 'stable when re-applied');
+// A missing rent row does not count, and a profile without spending adds nothing.
+assert.equal(applyProfile({ ...move, assumptions: [miss('rent', '$/month'), miss('monthly_expenses', '$/month')] }, { rent: 700, otherExpenses: 1000 }).assumptions[1].value, 1700);
+assert.equal(applyProfile(move, { income: 5000 }).assumptions.find(a => a.variable === 'monthly_expenses').source, 'missing');
+// An expenses total the user stated still beats everything.
+assert.equal(applyProfile({ ...move, assumptions: [...move.assumptions.slice(0, 3), { variable: 'monthly_expenses', value: 2500, unit: '$/month', source: 'stated', source_detail: 'User said' }] }, { rent: 700, otherExpenses: 1000 }).assumptions[3].value, 2500);
+
+console.log('PASS: profile fill, precedence, surplus reset, provenance, privacy and chat rent');

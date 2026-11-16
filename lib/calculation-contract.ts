@@ -26,7 +26,7 @@ export interface CalculationRequest {
   verify?: boolean;   // confirmed answer: have the LLM work the numbers and check them against the calculator
 }
 interface ResponseContent {
-  information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean })[];
+  information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean; fromProfile?: boolean })[];
   questions: Question[];
   assumptions: SystemAssumption[];
   parameters: EditableField[];
