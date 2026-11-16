@@ -19,18 +19,27 @@ BASE = [A("monthly_income", 2000, "$/month"), A("monthly_expenses", 1650, "$/mon
 def test_matches_contract_example():
     r = calculate(req(*BASE))
     assert r["status"] == "ready" or r["status"] == "conditional"
-    assert r["answer"]["headline"] == ("Yes, if you save {monthly_contribution} per month, "
-                                       "you'll use $200 from your savings.")
-    p = r["parameters"][0]
-    assert (p["key"], p["value"], p["min"], p["max"]) == ("monthly_contribution", 350, 0, 350)
+    assert r["answer"]["headline"] == ("Yes. Save $350 a month for 8 months and use $200 "
+                                       "of your savings to cover the $3,000.")
+    assert "parameters" not in r
+    assert r["visuals"]["funding"] == {"goal": 3000, "from_income": 2800, "from_savings": 200, "short": 0}
 
 
-def test_slider_value_is_used_and_clamped():
-    r = calculate(req(*BASE, parameters={"monthly_contribution": 250}))
-    assert r["parameters"][0]["value"] == 250
-    assert "short" in r["answer"]["headline"] or "savings" in r["answer"]["headline"]
+def test_default_plan_spreads_the_goal_and_keeps_savings():
+    r = calculate(req(A("monthly_income", 4000, "$/month"), A("monthly_expenses", 2000, "$/month"),
+                      A("current_savings", 1972), A("goal_amount", 1500), A("goal_deadline", 4, "months")))
+    assert r["answer"]["headline"].startswith("Yes. Setting aside $375 a month for 4 months")
+    v = r["visuals"]
+    assert v["budget"] == {"income": 4000, "expenses": [{"label": "Expenses", "amount": 2000}], "goal": 375, "left_over": 1625}
+    assert [t["set_aside"] for t in v["timeline"]] == [375, 750, 1125, 1500]
+    assert [o["label"] for o in v["options"]] == ["Spread over 4 months", "Pay it all from savings now", "Save your whole surplus (1 month)"]
+
+
+def test_requested_contribution_is_used_and_clamped():
+    r = calculate(req(*BASE, parameters={"monthly_contribution": 150}))
+    assert r["answer"]["headline"].startswith("Not yet")
     r = calculate(req(*BASE, parameters={"monthly_contribution": 9999}))
-    assert r["parameters"][0]["value"] == 350
+    assert "$350 a month" in r["answer"]["headline"]
 
 
 def test_short_goal_gets_options():

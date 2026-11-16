@@ -2,7 +2,7 @@
 // The Python side only ever sees these simple shapes. All UI-specific structure
 // (bindings, controls, answer segments) is built HERE so backend authors never need it.
 import type { AssumptionValue } from './extraction';
-import { emptyContent, validateCalculation, type AnswerContent, type AnswerSegment, type CalculationRequest, type CalculationResponse, type Control, type EditableField, type Question, type SystemAssumption, type Verification, type VerificationCheck } from './calculation-contract';
+import { emptyContent, validateCalculation, type AnswerContent, type AnswerSegment, type CalculationRequest, type CalculationResponse, type Control, type EditableField, type Question, type SystemAssumption, type Verification, type VerificationCheck, type Visuals } from './calculation-contract';
 import { money } from './workspace-model';
 
 // ---------- Request: frontend -> POST /calculate ----------
@@ -151,7 +151,12 @@ export function fromCalculateWire(raw: unknown, request: CalculationRequest): Ca
     const verification = isObj(v) && ['match', 'mismatch', 'unavailable'].includes(String(v.status)) && Array.isArray(v.checked)
       ? { status: v.status as Verification['status'], checked: (v.checked as unknown[]).filter(isObj).map(c => ({ key: String(c.key), label: String(c.label), llm: (c.llm ?? null) as VerificationCheck['llm'], calculator: c.calculator as VerificationCheck['calculator'], match: c.match === true })), reasoning: typeof v.reasoning === 'string' ? v.reasoning : '' }
       : undefined;
-    return validateCalculation({ ...base, status, ...(message ? { message } : {}), ...(verification ? { verification } : {}), answer: buildAnswer(headline, optText(answer.detail), parameters) }, extraction);
+    const visuals = isObj(w.visuals) && (w.visuals.kind === 'one_time' || w.visuals.kind === 'recurring') ? w.visuals as unknown as Visuals : undefined;
+    const n = w.narrative;
+    const narrative = isObj(n) && typeof n.text === 'string' && n.text.trim()
+      ? { text: n.text, suggestions: Array.isArray(n.suggestions) ? n.suggestions.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, 3) : [] }
+      : undefined;
+    return validateCalculation({ ...base, status, ...(message ? { message } : {}), ...(verification ? { verification } : {}), ...(visuals ? { visuals } : {}), ...(narrative ? { narrative } : {}), answer: buildAnswer(headline, optText(answer.detail), parameters) }, extraction);
   }
   if (status === 'unsupported') base.nextActions = [{ label: 'Review information', action: 'review_information' }];
   return validateCalculation({ ...base, status, message: message ?? (status === 'needs_input' ? 'A few details are needed before we can calculate an answer.' : 'This question needs a calculation model that is not available yet.') }, extraction);

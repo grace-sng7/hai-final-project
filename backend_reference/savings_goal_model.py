@@ -84,11 +84,21 @@ class Scenario:
 
 
 def contribution_for(s: Scenario, requested=None) -> float:
-    """Monthly amount set aside. Can't exceed the surplus; a deficit erodes savings."""
+    """Monthly amount set aside. Can't exceed the surplus; a deficit erodes savings.
+
+    Default plan: spread the goal evenly over the deadline from monthly income, so savings stay
+    untouched where possible (any debt owed is covered too). Only when that is more than the surplus
+    does the whole surplus go to the goal and savings make up the rest.
+    """
     sur = s.surplus
     if sur <= 0:
         return sur
-    return sur if requested is None else min(max(requested, 0.0), sur)
+    if requested is not None:
+        return min(max(requested, 0.0), sur)
+    if s.goal_type == "one_time" and s.deadline_months > 0:
+        even = max(0.0, s.goal_amount - min(s.usable_savings, 0.0)) / s.deadline_months
+        return min(sur, math.ceil(even * 100 - 1e-6) / 100)
+    return sur
 
 
 def evaluate(s: Scenario, requested=None) -> dict:
@@ -208,6 +218,60 @@ def _describe_plan(ps: Scenario, pe: dict) -> str:
     return f"{verdict}: monthly cash after the new cost would be {money(pe['new_surplus'])}."
 
 
+# ------------------------------------------------------------------ chart data
+
+def _r(x: float) -> float:
+    return round(x + 0.0, 2)
+
+
+def _budget(s: Scenario, goal_monthly: float) -> dict:
+    """Where one month's income goes: expense pieces, the goal, and what is left."""
+    items = [{"label": _pretty(k).capitalize(), "amount": _r(v)} for k, v in s.expenses.items() if v > 0.005]
+    if len(items) == 1:
+        items[0]["label"] = "Expenses"
+    return {"income": _r(s.monthly_income), "expenses": items,
+            "goal": _r(max(goal_monthly, 0.0)), "left_over": _r(s.surplus - max(goal_monthly, 0.0))}
+
+
+def _option(label: str, ps: Scenario, pe: dict, current: bool = False) -> dict:
+    if ps.goal_type == "one_time":
+        return {"label": label, "current": current, "feasible": pe["feasible"],
+                "goal": _r(ps.goal_amount), "months": ps.deadline_months,
+                "monthly": _r(max(pe["contribution"], 0.0)),
+                "from_savings": _r(min(pe["draw"], max(pe["usable_savings"], 0.0))),
+                "savings_left": _r(pe["balance"] - ps.goal_amount) if pe["feasible"] else 0.0,
+                "short": _r(pe["shortfall"])}
+    return {"label": label, "current": current, "feasible": pe["feasible"],
+            "goal": _r(ps.goal_amount), "left_each_month": _r(pe["new_surplus"])}
+
+
+def _visuals(s: Scenario, ev: dict, plans: list) -> dict:
+    """Structured numbers for the answer's charts and tables. All arithmetic stays here."""
+    if s.goal_type == "recurring":
+        options = [_option("As planned", s, ev, current=True)] + [_option(n, ps, pe) for n, ps, pe in plans]
+        return {"kind": "recurring", "budget_now": _budget(s, 0.0), "budget_after": _budget(s, s.goal_amount),
+                "options": options}
+    c, n = max(ev["contribution"], 0.0), s.deadline_months
+    from_income = min(c * n, s.goal_amount)
+    from_savings = min(ev["draw"], max(s.usable_savings, 0.0))
+    funding = {"goal": _r(s.goal_amount), "from_income": _r(from_income),
+               "from_savings": _r(from_savings), "short": _r(ev["shortfall"])}
+    timeline = [{"month": m, "set_aside": _r(c * m)} for m in range(1, n + 1)]
+    options = [_option(f"Spread over {n} months", s, ev, current=True)]
+    if not plans:
+        usable = s.usable_savings
+        if usable >= s.goal_amount:
+            options.append({**_option("Pay it all from savings now", s, evaluate(s, 0.0)), "months": 0})
+        if s.surplus > c + 0.005:
+            fast = max(1, math.ceil(max(0.0, s.goal_amount - min(usable, 0.0)) / s.surplus - 1e-9))
+            if fast < n:
+                ps = replace(s, deadline_months=fast)
+                options.append(_option(f"Save your whole surplus ({fast} month{'s' if fast > 1 else ''})", ps, evaluate(ps, s.surplus)))
+    options += [_option(name, ps, pe) for name, ps, pe in plans]
+    return {"kind": "one_time", "funding": funding, "budget": _budget(s, c),
+            "timeline": timeline, "options": options}
+
+
 # ------------------------------------------------------------------ entry point
 
 def calculate(req: dict) -> dict:
@@ -316,15 +380,16 @@ def calculate(req: dict) -> dict:
         c, n = ev["contribution"], s.deadline_months
         if ev["feasible"]:
             if ev["draw"] > 0.005:
-                headline = ("Yes, if you save {monthly_contribution} per month, "
-                            f"you'll use {money(ev['draw'])} from your savings.")
+                headline = (f"Yes. Save {money(c)} a month for {n} months and use "
+                            f"{money(ev['draw'])} of your savings to cover the {money(s.goal_amount)}.")
             else:
-                headline = ("Yes, if you save {monthly_contribution} per month, "
-                            "you'll reach your goal without touching your savings.")
+                headline = (f"Yes. Setting aside {money(c)} a month for {n} months covers the "
+                            f"{money(s.goal_amount)} without touching your savings.")
         else:
-            headline = ("Not yet: saving {monthly_contribution} per month leaves you "
-                        f"{money(ev['shortfall'])} short of your {money(s.goal_amount)} goal "
-                        f"after {n} months.")
+            how = (f"even putting all {money(c)} you have left each month toward it"
+                   if c >= s.surplus - 0.005 else f"saving {money(c)} a month")
+            headline = (f"Not yet: {how}, you'd be {money(ev['shortfall'])} short of "
+                        f"{money(s.goal_amount)} after {n} months.")
         if s.surplus <= 0:
             headline = (f"Not with your current budget: you have {money(s.surplus)} left each "
                         f"month, so the {money(s.goal_amount)} goal isn't reachable in {n} months.")
@@ -344,15 +409,8 @@ def calculate(req: dict) -> dict:
         explanations.append({"label": "Saved by the deadline",
                              "text": f"{money(c)} × {n} months = {money(ev['saved'])}"})
         explanations.append({"label": "Taken from savings",
-                             "text": f"{money(s.goal_amount)} − {money(ev['saved'])} = {money(ev['draw'])} "
-                                     f"(you have {money(s.usable_savings)} usable)"})
-        if s.surplus > 0:
-            parameters.append({"key": "monthly_contribution", "label": "Save each month",
-                               "value": round(c, 2), "unit": "$", "min": 0,
-                               "max": round(s.surplus, 2), "step": 0.01})
-            assumptions.append({"id": "start",
-                                "text": f"Would saving {money(c)} each month work for you?",
-                                "parameter_key": "monthly_contribution", "review_label": "Review"})
+                             "text": f"{money(s.goal_amount)} goal − {money(ev['saved'])} saved = "
+                                     f"{money(ev['draw'])} needed from savings (you have {money(s.usable_savings)} usable)"})
         firm = all_stated and not warnings and (s.usable_savings >= s.goal_amount or s.surplus <= 0)
     else:
         extra = s.goal_amount
@@ -379,6 +437,7 @@ def calculate(req: dict) -> dict:
                              "text": f"{money(s.surplus)} − {money(extra)} = {money(ev['new_surplus'])}"})
         firm = all_stated and not warnings
 
+    visuals = _visuals(s, ev, plans)
     for name, ps, pe in plans:
         explanations.append({"label": f"Option: {name}", "text": _describe_plan(ps, pe)})
 
@@ -405,4 +464,5 @@ def calculate(req: dict) -> dict:
            "assumptions": assumptions, "limitations": limitations}
     if parameters:
         out["parameters"] = parameters
+    out["visuals"] = visuals
     return out

@@ -119,3 +119,5 @@ class CalculateResponse(BaseModel):
     assumptions: list[SystemAssumptionOut] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     verification: Optional[dict[str, Any]] = None   # set only when the request had verify=true
+    visuals: Optional[dict[str, Any]] = None        # chart/table numbers for the answer (all computed by the calculator)
+    narrative: Optional[dict[str, Any]] = None      # {"text", "suggestions"}: the LLM's plain-language explanation (verify=true only)
