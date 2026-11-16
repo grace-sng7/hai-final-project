@@ -23,6 +23,7 @@ export interface CalculationRequest {
   answers: Record<string, string>;
   parameters: Record<string, string>;
   answerFactBindings: Record<string, number>;
+  verify?: boolean;   // confirmed answer: have the LLM work the numbers and check them against the calculator
 }
 interface ResponseContent {
   information: (EditableField & { source: string; sourceDetail: string; confirmable: boolean })[];
@@ -36,7 +37,10 @@ interface ResponseContent {
 }
 export type AnswerSegment = { type: 'text'; text: string } | { type: 'parameter'; parameterId: string; prefix?: string; suffix?: string };
 export interface AnswerContent { headline: string; detail?: string; segments?: AnswerSegment[] }
-export type CalculationResponse = ResponseContent & (
+// LLM-led calculation checked by the deterministic calculator. The calculator's numbers are always the ones shown.
+export interface VerificationCheck { key: string; label: string; llm: number | boolean | null; calculator: number | boolean; match: boolean }
+export interface Verification { status: 'match' | 'mismatch' | 'unavailable'; checked: VerificationCheck[]; reasoning: string }
+export type CalculationResponse = ResponseContent & { verification?: Verification } & (
   | { status: 'ready' | 'conditional'; answer: AnswerContent; message?: string }
   | { status: 'needs_input' | 'unsupported' | 'stale'; answer?: never; message: string }
 );

@@ -43,8 +43,8 @@ const context = () => {
   const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   return { reference_date: date, timezone: 'America/New_York' };
 };
-const request = (original: string, ex: ExtractionResponse, parameters: Record<string, string>): CalculationRequest =>
-  ({ originalQuestion: original, extraction: ex, edits: {}, answers: {}, parameters, answerFactBindings: {} });
+const request = (original: string, ex: ExtractionResponse, parameters: Record<string, string>, verify = false): CalculationRequest =>
+  ({ originalQuestion: original, extraction: ex, edits: {}, answers: {}, parameters, answerFactBindings: {}, verify });
 
 // Which assumptions did a correction actually change? Used for the "Got it" acknowledgement.
 function changes(before: ExtractionResponse, after: ExtractionResponse): string[] {
@@ -112,7 +112,8 @@ export default function ChatApp() {
   async function calculate(value: ExtractionResponse) {
     setStage(2); typing();
     const run = async () => {
-      const response = await calculator.calculate(request(originalRef.current, value, paramsRef.current));
+      // A confirmed answer: the LLM works it, the calculator checks it (and wins). Slider moves below skip this.
+      const response = await calculator.calculate(request(originalRef.current, value, paramsRef.current, true));
       if (response.status === 'ready' || response.status === 'conditional') {
         current.current = null; setStage(3); push({ role: 'bot', kind: 'answer', response });
         if (modeRef.current === 'quick' && nextQuestion(value)) bot('That’s a quick estimate. I have a few optional questions that could make it more precise.', { replies: [DEEPER] });

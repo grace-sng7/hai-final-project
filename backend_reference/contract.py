@@ -65,6 +65,7 @@ class CalculateRequest(BaseModel):
     answers: list[FreeAnswer] = Field(default_factory=list)
     parameters: dict[str, float] = Field(default_factory=dict)
     extraction_meta: dict[str, Any] = Field(default_factory=dict)
+    verify: bool = False          # true: also have the LLM work the numbers and check them against the calculator
 
 
 class MissingInput(BaseModel):
@@ -117,3 +118,4 @@ class CalculateResponse(BaseModel):
     explanations: list[LabelText] = Field(default_factory=list)
     assumptions: list[SystemAssumptionOut] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    verification: Optional[dict[str, Any]] = None   # set only when the request had verify=true

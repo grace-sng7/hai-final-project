@@ -97,3 +97,13 @@
 .primary:hover { background: var(--primary-readable) !important; }
 .profileBanner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; margin-bottom: 14px; }
 .profileBanner button { padding: 4px 12px; font-size: 14px; }
+
+/* LLM-vs-calculator verification */
+.verify { margin: 0; font-size: 13px; border-radius: 10px; padding: 6px 10px; }
+.verifyOk { background: var(--success-background); color: var(--success-text); }
+.verifyWarn { background: var(--warning-background); color: var(--warning-text); }
+.verifyDetail { margin: 8px 0 12px; }
+.verifyDetail table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.verifyDetail th, .verifyDetail td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--track); }
+.verifyDetail th:not(:first-child), .verifyDetail td:not(:first-child) { text-align: right; }
+.verifyRowOff td { color: var(--warning-text); font-weight: 600; }

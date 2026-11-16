@@ -2,7 +2,7 @@
 // The Python side only ever sees these simple shapes. All UI-specific structure
 // (bindings, controls, answer segments) is built HERE so backend authors never need it.
 import type { AssumptionValue } from './extraction';
-import { emptyContent, validateCalculation, type AnswerContent, type AnswerSegment, type CalculationRequest, type CalculationResponse, type Control, type EditableField, type Question, type SystemAssumption } from './calculation-contract';
+import { emptyContent, validateCalculation, type AnswerContent, type AnswerSegment, type CalculationRequest, type CalculationResponse, type Control, type EditableField, type Question, type SystemAssumption, type Verification, type VerificationCheck } from './calculation-contract';
 import { money } from './workspace-model';
 
 // ---------- Request: frontend -> POST /calculate ----------
@@ -14,6 +14,7 @@ export interface CalculateWireRequest {
   answers: { target_variable: string; question: string; answer: string }[]; // free-text answers to extraction questions
   parameters: Record<string, number>;            // what-if values the user changed; absent key = use your default
   extraction_meta: Record<string, unknown>;      // every top-level extraction field except assumptions/clarification_questions
+  verify?: boolean;                              // true only for a confirmed answer (never for slider moves)
 }
 
 const blank = (v: unknown) => v === null || v === undefined || String(v).trim() === '';
@@ -37,7 +38,7 @@ export function toCalculateWire(request: CalculationRequest): CalculateWireReque
   for (const [key, value] of Object.entries(parameters)) if (!blank(value) && Number.isFinite(Number(value))) params[key] = Number(value);
   const { assumptions: _a, clarification_questions: _q, ...meta } = extraction;
   void _a; void _q;
-  return { original_question: request.originalQuestion, assumptions, extra_inputs, answers: free, parameters: params, extraction_meta: meta };
+  return { original_question: request.originalQuestion, assumptions, extra_inputs, answers: free, parameters: params, extraction_meta: meta, ...(request.verify ? { verify: true } : {}) };
 }
 
 // ---------- Response: POST /calculate -> frontend ----------
@@ -146,7 +147,11 @@ export function fromCalculateWire(raw: unknown, request: CalculationRequest): Ca
     const answer = rec(w.answer, 'answer');
     const headline = text(answer.headline, 'answer.headline');
     if (!headline.trim()) fail('answer.headline is empty');
-    return validateCalculation({ ...base, status, ...(message ? { message } : {}), answer: buildAnswer(headline, optText(answer.detail), parameters) }, extraction);
+    const v = w.verification;
+    const verification = isObj(v) && ['match', 'mismatch', 'unavailable'].includes(String(v.status)) && Array.isArray(v.checked)
+      ? { status: v.status as Verification['status'], checked: (v.checked as unknown[]).filter(isObj).map(c => ({ key: String(c.key), label: String(c.label), llm: (c.llm ?? null) as VerificationCheck['llm'], calculator: c.calculator as VerificationCheck['calculator'], match: c.match === true })), reasoning: typeof v.reasoning === 'string' ? v.reasoning : '' }
+      : undefined;
+    return validateCalculation({ ...base, status, ...(message ? { message } : {}), ...(verification ? { verification } : {}), answer: buildAnswer(headline, optText(answer.detail), parameters) }, extraction);
   }
   if (status === 'unsupported') base.nextActions = [{ label: 'Review information', action: 'review_information' }];
   return validateCalculation({ ...base, status, message: message ?? (status === 'needs_input' ? 'A few details are needed before we can calculate an answer.' : 'This question needs a calculation model that is not available yet.') }, extraction);
