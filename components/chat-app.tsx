@@ -2,12 +2,14 @@
 // Conversational front end. The framework is still: extract -> clarify -> calculate -> answer,
 // but each stage is a chat turn instead of a card. Services are the same ones the dashboard uses.
 import { useEffect, useRef, useState } from 'react';
-import type { CalculationRequest, CalculationResponse, CalculationService } from '../lib/calculation-contract';
+import Link from 'next/link';
+import type { CalculationRequest, CalculationService } from '../lib/calculation-contract';
 import type { ExtractionResponse, ExtractionService } from '../lib/extraction';
 import { liveCalculationService, liveExtractionService } from '../lib/http-services';
 import { calculationService as mockCalculation, extractionService as mockExtraction } from '../lib/services';
 import { applyLocalAnswer, parseSimpleAnswer } from '../lib/local-answer';
 import { applyProfile, clearProfile, hasProfile, loadProfile, monthlyExpenses, profileContext, saveProfile, stripProfile, type Profile } from '../lib/profile';
+import { forResume, getChat, newChatId, saveChat, toRecord, type Msg } from '../lib/history';
 import { label, money } from '../lib/workspace-model';
 import { ProfilePanel } from './profile-panel';
 import { AnswerCard, EstimateBreakdown, QuickReplies, Status, Typing, Understood, WorkingSheet, breakdown, message as said, show } from './chat-parts';
@@ -31,12 +33,6 @@ const SUGGESTIONS = [
   'I want to move to a $1,400/month apartment in February, I currently pay $1,000 rent. Can I swing it?',
 ];
 
-type Msg =
-  | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'bot'; kind: 'text'; text: string; note?: string; replies?: string[]; extraction?: ExtractionResponse }
-  | { id: number; role: 'bot'; kind: 'understood'; extraction: ExtractionResponse }
-  | { id: number; role: 'bot'; kind: 'answer'; response: CalculationResponse }
-  | { id: number; role: 'bot'; kind: 'typing' };
 type NewMsg = Msg extends infer M ? M extends { id: number } ? Omit<M, 'id'> : never : never;
 
 const context = () => {
@@ -53,7 +49,7 @@ function changes(before: ExtractionResponse, after: ExtractionResponse): string[
     .slice(0, 4).map(a => `${label(a.variable)}: ${show(a)}`);
 }
 
-export default function ChatApp() {
+export default function ChatApp({ resumeId }: { resumeId?: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -79,6 +75,27 @@ export default function ChatApp() {
   const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [msgs]);
+
+  // History: every chat is saved in this browser as it goes, and /?chat=<id> reopens one to continue it.
+  const chatId = useRef(newChatId());
+  const startedAt = useRef(0);
+  const savedLength = useRef(0);   // messages already in storage when a chat is reopened
+  useEffect(() => {
+    if (!resumeId) return;
+    const r = getChat(resumeId);
+    if (!r) return;
+    const restored = forResume(r);
+    chatId.current = r.id; startedAt.current = r.startedAt; savedLength.current = restored.length;
+    idRef.current = Math.max(0, ...restored.map(m => m.id)); originalRef.current = r.original; current.current = r.pending ?? null;
+    if (r.extraction) setExtraction(r.extraction);
+    setMsgs(restored); setStage(restored.some(m => 'kind' in m && m.kind === 'answer') ? 3 : r.extraction ? 1 : 0);
+  }, [resumeId]);
+  useEffect(() => {
+    if (msgs.length <= savedLength.current) return;   // nothing new yet (e.g. a chat that was just reopened)
+    if (!startedAt.current) startedAt.current = Date.now();
+    const record = toRecord(chatId.current, msgs, exRef.current, originalRef.current, startedAt.current, current.current);
+    if (record) saveChat(record);
+  }, [msgs, ex]);
 
   const push = (m: NewMsg) => setMsgs(list => [...list.filter(x => !('kind' in x && x.kind === 'typing')), { ...m, id: ++idRef.current } as Msg]);
   const bot = (textValue: string, extra: { note?: string; replies?: string[]; extraction?: ExtractionResponse } = {}) => push({ role: 'bot', kind: 'text', text: textValue, ...extra });
@@ -226,6 +243,8 @@ export default function ChatApp() {
   const reset = () => {
     idRef.current = 0; estimateFor.current = null; estimated.current = new Set(); exRef.current = null; originalRef.current = ''; asked.current = {}; skipped.current = new Set(); current.current = null; retry.current = null;
     setMsgs([]); setEx(null); setStage(0); setText(''); setBusy(false);
+    chatId.current = newChatId(); startedAt.current = 0; savedLength.current = 0;
+    if (window.location.search) window.history.replaceState(null, '', '/');
   };
   const pick = (value: string) => { setText(value); input.current?.focus(); };
   const lastAnswer = [...msgs].reverse().find(m => 'kind' in m && m.kind === 'answer') as Extract<Msg, { kind: 'answer' }> | undefined;
@@ -236,7 +255,7 @@ export default function ChatApp() {
     <header className={s.header}>
       <button type="button" className={s.brand} onClick={reset} aria-label="Start over"><span aria-hidden="true">☀</span> Pennyscope</button>
       <Status stage={stage} active={!empty} />
-      <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" disabled={busy} onClick={() => setProfileOpen(true)}>{hasProfile(profile) ? 'Profile' : 'Set up profile'}</button><button type="button" onClick={reset}>New chat</button></div>
+      <div className={s.headerRight}><button type="button" className={s.sheetToggle} onClick={() => setSheetOpen(o => !o)} aria-expanded={sheetOpen}>Working sheet</button><button type="button" disabled={busy} onClick={() => setProfileOpen(true)}>{hasProfile(profile) ? 'Profile' : 'Set up profile'}</button><Link href="/history" className={s.headerLink}>History</Link><button type="button" onClick={reset}>New chat</button></div>
     </header>
     <div className={s.body}>
       <main className={s.thread} aria-live="polite">
