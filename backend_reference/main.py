@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import extraction_service
 import narration
-import savings_goal_model
+import model_router
 import verification
 from contract import CalculateRequest, CalculateResponse, CorrectRequest, ExtractionResponse, ExtractRequest
 
@@ -37,7 +37,7 @@ def calculate(req: CalculateRequest):
     # To add a new question type: write another module with the same dict-in/dict-out shape,
     # and choose between models here (e.g. by req.extraction_meta.get("question_type")).
     data = req.model_dump()
-    result = savings_goal_model.calculate(data)
+    result = model_router.calculate(data)
     # Confirmed answers: the LLM's own working is checked against the calculator, which always wins,
     # and (in parallel) the LLM explains the calculator's result in plain language.
     if req.verify and result["status"] in ("ready", "conditional"):
